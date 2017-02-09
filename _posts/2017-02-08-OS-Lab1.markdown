@@ -1,0 +1,171 @@
+---
+layout: post
+title:  "MIT6.828 Lab1 Booting a PC Part 1"
+tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828L1]
+comments: true
+description: "MIT6.828 Lab1 Booting a PC Part 1"
+keywords: "OS"
+date:   2017-02-08 19:57:58 +0800
+---
+
+## 实验一大纲
+- 环境配置
+- 第一部分：PC Bootstrap
+    - x86汇编
+    - 模拟x86
+    -  PC的物理地址空间
+    -  ROM BIOS
+- 第二部分：The Boot Loader
+    - 加载内核
+- 第三部分：The kernel
+
+## 环境配置
+ MIT6.828的环境配置花了我不少时间，主要是对**Ubuntu**的编译环境不太熟悉，根据[Tools used in MIT6.828](https://pdos.csail.mit.edu/6.828/2016/tools.html)对本机环境进行配置。我是在Ubuntu的操作系统上进行实验的。有时间专门写一下如何在自己的Ubuntu上配置lab所需环境。
+
+环境配置好后就可以开始做实验了，先要将项目clone到本地文件夹：
+
+```
+$ mkdir ~/6.828
+$ cd ~/6.828
+$ add git
+$ git clone https://pdos.csail.mit.edu/6.828/2016/jos.git lab
+Cloning into lab...
+$ cd lab
+```
+
+这样lab1实验环境就有了。
+
+##第一部分：PC Bootstrap
+这部分主要介绍x86 汇编语言和PC的引导过程，并开始QEMU和QEMU/GDB的调试。
+
+### 从x86汇编开始
+[PC Assembly Language Book](https://pdos.csail.mit.edu/6.828/2016/readings/pcasm-book.pdf)中的例子是在NASM上汇编的，而我们要用GUN汇编。NASM用的是Intel语义而GUN用的是AT&T语义,幸运的是它们间的区别可以在[Brennan's Guide to Inline Assembly](https://pdos.csail.mit.edu/6.828/2016/readings/pcasm-book.pdf)上看到。
+
+>练习1:从参考资料中熟悉汇编语言，不用现在阅读，但要保证在读写x86汇编程序时会参考这些资料。推荐阅读一下[Brennan's Guide to Inline Assembly](https://pdos.csail.mit.edu/6.828/2016/readings/pcasm-book.pdf)，它给出了我们在JOS中用的GUN编译器AT&T汇编语义的比较好的描述。
+
+针对x86汇编程序指定的是Intel的指令集，可见**[80386 Programmer's Reference Manual](https://pdos.csail.mit.edu/6.828/2016/readings/i386/toc.htm)**,这要比最近的Manual要短很多确拥有我们实验所需的所有指令。在Intel的 IA-32 Intel Architecture Software Developer's Manuals 中有着更完整的指令。类似的，AMD也有相应Manual：[Developer Guides, Manuals & ISA Documents](http://developer.amd.com/resources/developer-guides-manuals/#manuals)。将它们收藏起来准不会错。
+
+
+### 模拟x86
+我们不在物理上开发操作系统而是在仿真器上完成，这样便于调试、设置断点，而这在真实的物理器不易实现。
+
+- QEMU Emulator
+- GUN debugger
+
+到目录下并运行
+
+```
+$ cd lab
+$ make
++ as kern/entry.S
++ cc kern/entrypgdir.c
++ cc kern/init.c
++ cc kern/console.c
++ cc kern/monitor.c
++ cc kern/printf.c
++ cc kern/kdebug.c
++ cc lib/printfmt.c
++ cc lib/readline.c
++ cc lib/string.c
++ ld obj/kern/kernel
++ as boot/boot.S
++ cc -Os boot/main.c
++ ld boot/boot
+boot block is 380 bytes (max 510)
++ mk obj/kern/kernel.img
+```
+
+这是在建立6.828的boot loader以及要开始的kernel（称这里的代码为kernel有点generous）。那么运行qemu就很简单了，直接在终端输入：
+
+`$ make qemu`
+
+得到如下图中的运行结果：
+
+![make qemu run pic](https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/L1-P1-screemshot-make_qemu.png?raw=true)
+
+
+在上面的信息出现之后，就在Qemu上出现了JOS的内核显示器，发现控制台和显示器显示的内容是相同的。在内核显示器上可以给其两个command：help和kerninfo，如下图：
+
+![quem command run pic](https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/L1-P1-screemshot-kerinfo.png?raw=true)
+
+虽然命令很简单，但这说明了内核直接在仿真PC的虚拟硬件上运行，这意味着可以将**obj/kern/kernel.img**的内容复制到一个真实硬件磁盘上的第一个小的扇区，然后将其插入真实的PC中并打开，能够看到与此事QEMU一样的窗口（不过不推荐这样做，会影响硬件磁盘资料的丢失）。
+
+
+### PC物理地址空间
+```
+                    +------------------+  <- 0xFFFFFFFF (4GB)
+                    |      32-bit      |
+                    |  memory mapped   |
+                    |     devices      |
+                    |                  |
+                    /\/\/\/\/\/\/\/\/\/\
+
+                    /\/\/\/\/\/\/\/\/\/\
+                    |                  |
+                    |      Unused      |
+                    |                  |
+                    +------------------+  <- depends on amount of RAM
+                    |                  |
+                    |                  |
+                    | Extended Memory  |
+                    |                  |
+                    |                  |
+                    +------------------+  <- 0x00100000 (1MB)
+                    |     BIOS ROM     |
+                    +------------------+  <- 0x000F0000 (960KB)
+                    |  16-bit devices, |
+                    |  expansion ROMs  |
+                    +------------------+  <- 0x000C0000 (768KB)
+                    |   VGA Display    |
+                    +------------------+  <- 0x000A0000 (640KB)
+                    |                  |
+                    |    Low Memory    |
+                    |                  |
+                    +------------------+  <- 0x00000000
+
+```
+
+起初的PC是建立在16位的Intel 8088处理器上的，仅有1M的物理地址空间。因此这样只能从0x00000000开始并在**0x000FFFFF**结束。640K的空间被标记为“低内存”，也就是早年PC能够用的随机存取存储器。事实上最早的PC只能识别RAM的16KB、32KB、64KB空间。
+
+在往上点的384K的空间提供硬件的特殊需求，例如VGA缓冲。最最要的一段空间是BIOS（基本输入输出系统），占据64KB（0x000F0000到0x000FFFFF）。以前BIOS都是用的ROM，现在一般都用flash了。BIOS一般用于初始化系统，例如激活video card和检测安装的内存数量。在初始化之后，BIOS从相应的位置，譬如floppy disk、hard disk、CD-ROM或者the network加载操作系统并将控制权交给操作系统。
+
+当Intel终于从80286处理器（16MB）跨越到80386处理器（4GB）并打破兆级后，PC架构保留了低1M的物理地址空间，保证能过向后兼容软件。而新一代的PC就有了巨大的物理空间，也就是从0x000A0000 到0x00100000，将RAM分为之前的640KB和剩下的拓展空间。另外在顶上的PC的32位物理地址空间也由BIOS的32位的PCI设备保留。
+
+x86处理器能支持大于4GB的物理RAM，即RAM可以拓展到0xFFFFFFFF以上。JOS将只用PC物理内存的一开始的256MB。
+
+
+### The ROM BIOS
+
+在这段实验中，用QEMU的调试特性来研讨兼容IA-32的计算机怎样开机。
+
+打开两个控制台分别输入
+
+```
+$ make qemu-gdb
+$ make gdb
+```
+
+![make gdb run pic](https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/L1-P1-screemshot-qemu_gdb.png?raw=true)
+
+如图，看到一行
+
+`[f000:fff0] 0xffff0:   ljmp   $0xf000,$0xe05b`
+
+这是第一条执行的指令，从该输出可以得到一些结论：
+- IBM PC在物理地址0x000fff0开始执行，这是由ROM BIOS保留的靠上的64KB
+- PC开始执行，并且CS = 0xf000、IP = 0xfff0
+- 第一条指令执行的是jmp指令，跳到CS = 0xf000且IP = 0xe05b
+
+**那为什么QEMU要这样开始呢**
+这就是IBM早期用在他们PC上的Intel 8088处理器。由于在PC中的BIOS的物理地址范围在0x000f0000-0x000fffff，这样的设计可以使PC在一通电，BIOS总是能够首先控制机器。QEMU中，处理器重置，进入实模式（real mode）设置CS为0xf000，IP为0xfff0，以便在片地址（CS:IP）下执行。
+
+
+>练习2:利用GDB的si命令跟踪一些ROM BIOS的指令，尝试猜测它们在干什么。不用全部弄清楚，只要大致知道BIOS在干嘛就好。可以参考[Phil Storrs I/O Ports Description](http://web.archive.org/web/20040404164813/members.iweb.net.au/~pstorr/pcbook/book2/book2.htm) 。
+
+当BIOS执行，它就建立一个中断描述表并初始化各种设备，这也就是为啥我们能看到QEMU窗口上的“Starting SeaBIOS”信息。之后，它就寻找一个类似floppy、hard drive或CD-ROM的设备，一旦找到，BIOS读取 **boot loader**并转交控制权。
+
+
+
+
+
+

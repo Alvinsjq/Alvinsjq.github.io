@@ -128,10 +128,16 @@ hr {
 }
 
 .post-list {
-
+margin: 0 0 0.75em;
+    font-size: 1.2em;
 }
 
-
+.post-list-date small {
+    color: #757575;
+    display: inline-block;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
 
 
 .category-title {

@@ -21,7 +21,32 @@ title: Tagged
 		{% endunless %}
 	{% endif %}
 {% endfor %}
+<style type="text/css">
+	
+.post-list-date {
+    float: right;
+    margin: 0 0 0 20px;
+}
 
+.post-list-date small {
+    color: #757575;
+    display: inline-block;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.post-list-desc {
+    color: #888;
+    font-size: 80%;
+    padding-right: 110px;
+}
+
+h2.year i.fa {
+    margin-top: -5px;
+    margin-right: 5px;
+}
+
+</style>
 <div class="container">
 	<div class="posts">
 	  {% for tag in tags %}

@@ -334,6 +334,7 @@ hr {
         display: inline-block;
         background: #f0f0f0;
         color: #069;
+        font-size:small;
     }
     a.tag-anchor:active,
     a.tag-anchor:focus,
@@ -341,6 +342,9 @@ hr {
         background: #069;
         color: #fff;
     }
-
+  
+  i.fa {
+    font-size: small;
+  }
     
 }

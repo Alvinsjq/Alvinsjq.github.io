@@ -39,6 +39,7 @@ title: Tagged
     display: inline-block;
     letter-spacing: 1px;
     text-transform: uppercase;
+    font-size: small;
 }
 
 .post-list-desc {
@@ -51,6 +52,12 @@ h2.year i.fa {
     margin-top: -5px;
     margin-right: 5px;
 }
+	a.text-truncate:active,
+    a.text-truncate:focus,
+    a.text-truncate:hover {
+        background: #069;
+        color: #fff;
+    }
 
 </style>
 <div class="container">
@@ -66,7 +73,7 @@ h2.year i.fa {
 		    <div class="text-truncate"><a href="{{ post.url }}">{{ post.title }}</a></div>
 	      <div class="post-list-desc">{{ post.description }}</div>
 	    </div>
-
+	    <br>
 	    {% endif %}
 	    {% endfor %}
 

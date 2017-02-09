@@ -5,6 +5,21 @@ title: Home
 
 {% include intro.html %}
 
+<style type="text/css">
+  
+.post-link,
+.post a,
+.page a {
+  font-family: 'Fira Sans', sans-serif;
+  font-weight: 150;
+}
+.post-item {
+
+  a {
+    color: #264d9c;
+    font-weight: 100;
+  }
+</style>
 <section class="post-list">
   <div class="container">
     {% for post in site.posts %}
@@ -18,18 +33,6 @@ title: Home
         {% endif %}
       {% endunless %}
       <article class="post-item">
-
-
-<style type="text/css">
-  
-.post-link,
-.post a,
-.page a {
-  font-family: 'Fira Sans', sans-serif;
-  font-weight: 150;
-}
-</style>
-
         <span class="post-meta date-label">{{ post.date | date: "%b %d" }}</span>
         <div class="article-title"><a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a></div>
       </article>

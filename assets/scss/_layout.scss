@@ -119,6 +119,7 @@ hr {
   li {
     display: inline-block;
     padding: 0 .6em;
+    float: right;
   }
 
   a {
@@ -310,7 +311,7 @@ hr {
 
 .tag-cloud {
     margin-bottom: 20px;
-    margin-left: 150px;
+    margin-left: 148px;
    margin-right: auto;
     a.tag-anchor {
         margin-right: 4px;

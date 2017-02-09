@@ -52,10 +52,15 @@ h2.year i.fa {
     margin-top: -5px;
     margin-right: 5px;
 }
-	text-truncate.a:active,focus,hover {
+  a.gaoliang:active,
+    a.gaoliang:focus,
+    a.gaoliang:hover {
         background: #069;
         color: #fff;
     }
+
+
+		
 
 </style>
 <div class="container">
@@ -68,7 +73,7 @@ h2.year i.fa {
 
 	    <div class="post-list">
 	      <div class="post-list-date"><small>{{ post.date | date: "%b %d, %Y" }}</small></div>
-		    <div class="text-truncate"><a href="{{ post.url }}">{{ post.title }}</a></div>
+		    <div class="text-truncate"><a href="{{ post.url }}" class="gaoliang">{{ post.title }}</a></div>
 	      <div class="post-list-desc">{{ post.description }}</div>
 	    </div>
 	    <br>

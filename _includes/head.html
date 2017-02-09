@@ -38,9 +38,12 @@
       {{ page_description | strip | rstrip | lstrip | escape | strip_newlines }}
   {% endcapture %}
 <!-- Icons -->
-  <link rel="apple-touch-icon" sizes="144x144" href="{{ site.baseurl }}assets/images/webicon.png">
-  <link rel="icon"  href="{{ site.baseurl }}assets/images/webicon_32.png">
-  <link rel="shortcut icon"  href="{{ site.baseurl }}assets/images/webicon_32.png">
+
+href="{{ "/assets/icons/apple-icon-76x76.png" | prepend: site.baseurl }}"
+
+  <link rel="apple-touch-icon" sizes="144x144" href="assets/images/webicon.png">
+  <link rel="icon"  href="/assets/images/webicon_32.png">
+  <link rel="shortcut icon"  href="/assets/images/webicon_32.png">
   
   <meta name="description" content="{{ page_description }}">
   <meta name="keywords" content="{% if page.keywords %}{{ page.keywords }}{% else %}{{ site.keywords }}{% endif %}">

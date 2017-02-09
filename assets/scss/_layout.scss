@@ -42,7 +42,7 @@ hr {
   padding: $base-spacing;
   margin-left: 125px;
   margin-right: auto;
-  max-width: 800px;
+  max-width: 888px;
   font-weight: normal;
 }
 
@@ -313,9 +313,11 @@ hr {
     margin-bottom: 20px;
     margin-left: 148px;
    margin-right: auto;
+   max-width: 888px;
     a.tag-anchor {
         margin-right: 4px;
         margin-bottom: 8px;
+
         border: 1px solid transparent;
         white-space: nowrap;
         padding-left: 5px;

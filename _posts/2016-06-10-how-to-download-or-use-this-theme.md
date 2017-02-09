@@ -5,6 +5,7 @@ comments: true
 description: "Here is How to Download/Use This Theme"
 keywords: "dummy content"
 tags: [Jekyll theme,Blog]
+date: 2016-06-10
 ---
 
 ### Use this theme as you main site

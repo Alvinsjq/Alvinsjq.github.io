@@ -5,6 +5,7 @@ comments: true
 description: "Markdown Cheatsheet Demo..."
 keywords: "markdown, typography components, dummy content"
 tags:[Markdown模版]
+date: 2015-12-30
 ---
 
 > This is Markdown Cheatsheet Demo for **Thinkspace**, this Jekyll theme. Please check the raw content of this file for the markdown usage.

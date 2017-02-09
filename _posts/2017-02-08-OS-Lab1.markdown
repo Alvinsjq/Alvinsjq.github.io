@@ -5,6 +5,7 @@ tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828L1]
 comments: true
 description: "MIT6.828 Lab1 Booting a PC Part 1"
 keywords: "OS"
+date: 2017-02-08
 ---
 
 ## 实验一大纲

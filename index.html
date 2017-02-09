@@ -67,6 +67,13 @@ title: Home
 <!-定义标签云的框架->
 {% if tags %}
 <div class="tag-cloud" id="Tags">
+<style type="text/css">
+  
+  i.fa {
+    font-size: small;
+  }
+  
+</style>
   {% for tag in tags %}
     <a id="{{ tag | slugify }}" class="tag-anchor" href="{{ site.url }}{{ site.baseurl }}/tagged#{{ tag | slugify }}"><i class="fa fa-hashtag"></i> {{ tag }}</a>
   {% endfor %}

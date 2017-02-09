@@ -1,0 +1,12 @@
+<footer class="site-footer">
+  <div class="container">
+    <small class="block">&copy; {{ site.time | date: '%Y' }} {{ site.author.name }}. All rights reserved.</small>
+    <small><a href="https://github.com/heiswayi/thinkspace">Thanks for <i class="fa fa-heart" aria-hidden="true" style="color:#DD3D36"></i>  Thinkspace</a> theme by <a href="http://heiswayi.github.io/">Heiswayi Nrird</a>.</small>
+
+	{% if site.display_social_icons %}
+            {% include social_links.html %}
+          {% endif %}
+
+
+  </div>
+</footer>

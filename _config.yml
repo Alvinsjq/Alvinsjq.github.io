@@ -1,0 +1,61 @@
+
+# SEO settings
+title: "Alvin Is"
+#title2: "施" # default: ""
+description: "想要多懂点的家伙"
+#keywords: "Jekyll, theme, free, download, SEO, blog, web, minimalist, thinkspace"
+url: http://alvinsjq.github.io # site url
+baseurl: null # apply repo name if use it under gh-pages branch
+# baseurl: null # apply null if repo name is something like username.github.io
+
+#google_analytics: UA-XXXXX-XX
+repo: https://github.com/Alvinsjq/Alvinsjq.github.io
+#disqus_shortname: ""
+twitter_username: "Alvin_sjq"
+comments: true 
+
+# Build settings
+permalink   : /:year/:title/
+markdown    : kramdown
+highlighter : rouge
+
+source: ./
+destination: ./_site
+
+# Sass configuration
+sass:
+  sass_dir: assets/scss
+  style: compressed # expanded
+
+# Author settings
+author:
+  name     : "Alvinsjq"
+  job      : "Software Master in ECNU"
+  bio      : "想要多懂点的家伙。"
+  thumb    : /images/author.jpg
+  email    : shijian_ecnu@163.com
+  url      : http://alvinsjq.github.io
+  github   : http://github.com/alvinsjq
+  twitter  : http://twitter.com/Alvin_sjq
+  #facebook : https://www.facebook.com/profile.php?id=1257583160
+  #linkedin : http://linkedin.com/in/nrird
+
+# social settings
+og_locale: "en_US"
+twitter_card: "summary_large_image"
+twitter_site: "@Alvin_sjq"
+display_social_icons: true # Edit file in /_includes/social_links.html
+
+
+gems:
+  - bourbon
+  - jekyll-paginate
+
+# navbar pages
+navbar:
+  - slug : about
+    title: About
+  - slug : blog
+    title: Blog
+
+exclude: ["gulp", "node_modules", "bower", "bower_components", "config.rb", "src", "Gemfile", "Gemfile.lock", ".rvmrc", ".rbenv-version", "package.json", "gulpfile.js", "README.md", "Rakefile", "changelog.md"]

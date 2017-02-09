@@ -1,0 +1,75 @@
+---
+layout: default
+---
+
+<article class="post container" itemscope itemtype="http://schema.org/BlogPosting">
+  <header class="post-header">
+    <p class="post-meta"><time datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">{{ page.date | date: "%b %-d, %Y" }}</time>{% if page.author %} • <span itemprop="author" itemscope itemtype="http://schema.org/Person"><span itemprop="name">{{ page.author }}</span></span>{% endif %}</p>
+    <h1 class="post-title" itemprop="name headline">{{ page.title }}</h1>
+  </header>
+  <div class="post-content" itemprop="articleBody">
+    {{ content }}
+    {% include post-share.html %}
+  </div>
+
+
+
+<style type="text/css">
+	
+  .tagged {
+        margin-top: 1rem;
+    }
+
+    .tagged a {
+        border: 1px solid #ddd;
+        padding: 2px 5px;
+        background: transparent;
+        display: inline-block;
+        color: #999;
+        outline: 0;
+        text-decoration: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        font-size: 70%;
+    }
+
+    .tagged a:hover {
+        cursor: pointer;
+        border: 1px solid #555;
+        background: #444;
+        color: #fff;
+    }
+.back {
+    /*text-align: center;*/
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+</style>
+
+{% assign post = page %}
+		{% if post.tags.size > 0 %}
+
+		{% assign tags_content = "" %}
+		{% for post_tag in post.tags %}
+			{% capture tags_content_temp %}
+				{{ tags_content }}<a href="{{ site.url }}{{ site.baseurl }}/tagged#{{ post_tag | slugify }}"><i class="fa fa-hashtag" aria-hidden="true"></i>{{ post_tag }}</a>
+			{% endcapture %}
+			{% assign tags_content = tags_content_temp %}
+		{% endfor %}
+
+    <div class="tagged">
+			{{ tags_content }}
+	</div>
+	{% endif %}
+
+	<br>
+
+
+<div class="back"><a href="/"><i class="fa fa-chevron-left"></i>Back</a></div>
+
+</article>
+
+
+

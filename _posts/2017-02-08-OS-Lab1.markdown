@@ -3,7 +3,7 @@ layout: post
 title:  "MIT6.828 Lab1 Booting a PC Part 1"
 tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828L1]
 comments: true
-description: "MIT6.828 Lab1 Booting a PC Part 1"
+description: "学习MIT6.828,估计会是个不错（被虐）的体验吧。这是这门课的实验一的第一部分"
 keywords: "OS"
 date:   2017-02-08 19:57:58 +0800
 ---

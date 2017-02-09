@@ -3,7 +3,8 @@ layout: post
 title:  "Github Pages和Jekyll建立自己的个人blog小记"
 tags: [Jekyll theme,Blog]
 comments: true
-description: "怎样建一个自己的网站呀？请戳"
+description: "一直想给自己建一个小站来写写东西，最近终于有时间动手了。首先想着最好能有一种经济实惠、靠谱稳定的平台，后来上网找了许久，发现Github Pages就是我需要的。那么具体
+怎样建一个自己的网站呀？请戳这里..."
 keywords: "blog"
 date:   2017-02-07 19:57:58 +0800
 ---

@@ -1,0 +1,117 @@
+---
+layout: post
+title:  "MIT6.828 Lab1 Booting a PC Part 2"
+tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828L1]
+comments: true
+description: "这是这门课的实验一的第二部分，主要是对BIOS的理解，以及怎样将控制权移交。"
+keywords: "OS"
+date:   2017-02-09 21:41:58 +0800
+---
+
+## 实验一大纲
+- 环境配置
+- 第一部分：PC Bootstrap
+    - x86汇编
+    - 模拟x86
+    -  PC的物理地址空间
+    -  ROM BIOS
+- 第二部分：The Boot Loader
+    - 加载内核
+- 第三部分：The kernel
+
+
+## 第二部分 The Boot Loader
+对于PC来说，软盘，硬盘都可以被划分为一个个大小为512字节的区域，叫做扇区。一个扇区是一次磁盘操作的最小粒度。每一次读取或者写入操作都必须是一个或多个扇区。如果一个磁盘是可以被用来启动操作系统的，就把这个磁盘的第一个扇区叫做启动扇区。当BIOS找到一个可以启动的软盘或硬盘后，它就会把这512字节的启动扇区加载到内存地址0x7c00~0x7dff这个区域内。
+
+在6.828中用的是传统的硬件启动机制，这就意味着我们的boot loader程序的大小必须小于512字节，boot loader有两个文件组成：
+- 汇编源文件boot/boot.S
+- C源文件boot/main.c
+需要理解这两个文件到底做了什么。而boot loader主有两个功能：
+1. 它将处理器从实模式切换到32位保护模式，只有在该模式才能够获取到1MB以上的物理地址空间。关于什么是保护模式，请看[它的1.2.7与1.2.8](https://pdos.csail.mit.edu/6.828/2016/readings/pcasm-book.pdf),现在可以先理解为在保护模式中，段地址偏移到物理地址会不一样并且偏移量达到32位而不是16位。
+2. 它可以通过使用x86特定的IO指令，直接访问IDE磁盘设备寄存器，从磁盘中读取内核。关于IDE hard drive controller可见[参考页面](https://pdos.csail.mit.edu/6.828/2016/reference.html)。
+
+在理解boot loader源文件之后，再看它的反汇编文件 **obj/boot/boot.asm**，它可以方便我们追踪boot loader在GDB中发生了什么。**obj/kern/kernel.asm**包含了JOS内核的反汇编文件，这对调试也很有用。
+
+
+**GDB Command**
+在特定地址设置断点
+
+`b *0x7c00` 
+
+继续执行直到下一个断点（或直到按Ctrl-c）
+
+`c`
+
+追踪指令
+```
+si 
+si N
+```
+
+
+>练习3: 看[lab tool guide](https://pdos.csail.mit.edu/6.828/2016/labguide.html),尤其是GDB命令。
+>在地址0x7c00处设置断点，这是boot sector被加载的地方。然后让程序继续运行直到到达这个断点。跟踪 **/boot/boot.S**文件的每一条指令，同时使用boot.S文件和反汇编文件 **obj/boot/boot.asm**。你也可以使用GDB的x/i指令来获取去任意一个机器指令的反汇编指令，把源文件boot.S文件和boot.asm文件以及在GDB反汇编出来的指令进行比较。 
+　　追踪到bootmain函数中，而且还要具体追踪到readsect()子函数里面。找出和readsect()c语言程序的每一条语句所对应的汇编指令，回到bootmain()，然后找出把内核文件从磁盘读取到内存的那个for循环所对应的汇编语句。找出当循环结束后会执行哪条语句，在那里设置断点，继续运行到断点，然后运行完所有的剩下的语句。 
+
+**需要回答出下列问题**
+1. 处理器在什么时候开始执行32位程序？到底是什么引起了16位到32位模式的切换？
+2. boot loader执行的最后一条指令是什么？它加载内核的第一条指令是什么？
+3. 内核的第一条指令是什么？
+4. 为了能够从磁盘获取整个内核，boot loader是如何决定它必须读取多少扇区的？并且它是在哪里找到这些信息的？
+
+
+
+**进行实验**
+
+#### GDB Command
+在特定地址设置断点
+
+`b *0x7c00` 
+
+继续执行直到下一个断点（或直到按Ctrl-c）
+
+`c`
+
+追踪指令
+```
+si 
+si N
+```
+
+#### 关键步骤
+1. 打开两个终端，到lab下分别运行`make qemu-gdb`和`make gdb`,在gdb下设置断点`b *0x7c00`并运行至断点位置 `c`。
+2. 发现断点处的指令就是文件**lab／boot/boot.S**中的`cli`。
+
+```
+.set PROT_MODE_CSEG, 0x8         # kernel code segment selector
+.set PROT_MODE_DSEG, 0x10        # kernel data segment selector
+.set CR0_PE_ON,      0x1         # protected mode enable flag
+
+.globl start
+start:
+  .code16                     # Assemble for 16-bit mode
+  cli                         # Disable interrupts      
+  cld                         # String operations increment
+```
+
+
+
+**待更新**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

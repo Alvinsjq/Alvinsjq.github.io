@@ -2,7 +2,7 @@
 layout: post
 title: "Here is How to Download/Use This Theme"
 comments: true
-description: "Here is How to Download/Use This Theme"
+description: "How to Use this theme as you main site? 这里是关于建站的故事..."
 keywords: "dummy content"
 tags: [Jekyll theme,Blog]
 date:   2016-06-10 19:57:58 +0800

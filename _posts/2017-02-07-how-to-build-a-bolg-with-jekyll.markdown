@@ -1,12 +1,23 @@
 ---
 layout: post
+title:  "fdfsdsfsdfsd"
+tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828L1]
+comments: true
+description: "MIT6.828 Lab1 Booting a PC Part 1"
+keywords: "OS"
+date:   2016-02-08 19:57:58 +0800
+---
+
+
+
+
+
+layout: post
 title:  "Github Pages和Jekyll建立自己的个人blog小记"
 tags:[Jekyll theme,Blog]
 comments: true
 keywords: "blog"
 date:   2017-02-07 19:57:58 +0800
----
-
 一直想给自己建一个小站来写写东西，最近终于有时间动手了。首先想着最好能有一种经济实惠、靠谱稳定的平台，后来上网找了许久，发现Github Pages就是我需要的。于是根据前人的博客和Github Pages上的步骤建了一个十分简单的属于自己的网站。接下来简单记录一下建站的过程。
 
 ### 前提

@@ -396,7 +396,7 @@ ph = (struct Proghdr *) ((uint8_t *) ELFHDR + ELFHDR->e_phoff);
 eph = ph + ELFHDR->e_phnum;
 ```
 
-###加载内核
+### 加载内核
 
 这节主要是继续研究main.c文件的代码的细节，因此需要对C语言指针部分进行复习。
 
@@ -554,7 +554,7 @@ $(OBJDIR)/boot/boot: $(BOOT_OBJS)
 重置机器，在BIOS进入到boot loader，查看BIOS启动时0x00100000处的8个words，然后继续到bootloader进入内核的位置，再查看，发现8个words的内容不同。为什么？第二个断点是什么？（just think）
 
 
-##参考资料：
+## 参考资料：
 
 1. MIT6.828课件
 2. 博文：[1](http://xinqiu.me/2016/10/15/MIT-6.828-1/);

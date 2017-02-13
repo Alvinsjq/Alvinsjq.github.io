@@ -403,7 +403,7 @@ eph = ph + ELFHDR->e_phnum;
 >练习4:阅读关于C的指针，参考书有[The C Programming Language by Brian Kernighan and Dennis Ritchie (known as 'K&R')]()。阅读其中的5.1到5.5。并确保理解**pointers.c**，弄明白指针值是从哪里来的。尤其是弄明白在第1行和第6行的指针地址是怎么来的，第2行到第4行的值是怎么得到的，为什么第5行输出的值似乎有错误。建议如果对C的指针不熟的话，千万不要跳过这个练习。
 
 运行完pointer.c代码会输出如下结果
-```c
+```
 shijiandeMacBook-Pro:Desktop alvin$ ./pointer 
 1: a = 0x7fff56c748e0, b = 0x7f8ff74027d0, c = 0x100000000
 2: a[0] = 200, a[1] = 101, a[2] = 102, a[3] = 103

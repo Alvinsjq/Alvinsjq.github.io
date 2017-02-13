@@ -12,7 +12,7 @@ baseurl: null # apply repo name if use it under gh-pages branch
 repo: https://github.com/Alvinsjq/Alvinsjq.github.io
 #disqus_shortname: ""
 twitter_username: "Alvin_sjq"
-comments: true 
+comments: true
 
 # Build settings
 permalink   : /:year/:title/

@@ -52,14 +52,8 @@ si N
 
 >练习3: 看[lab tool guide](https://pdos.csail.mit.edu/6.828/2016/labguide.html),尤其是GDB命令。
 >在地址0x7c00处设置断点，这是boot sector被加载的地方。然后让程序继续运行直到到达这个断点。跟踪 **/boot/boot.S**文件的每一条指令，同时使用boot.S文件和反汇编文件 **obj/boot/boot.asm**。你也可以使用GDB的x/i指令来获取去任意一个机器指令的反汇编指令，把源文件boot.S文件和boot.asm文件以及在GDB反汇编出来的指令进行比较。 
-　　追踪到bootmain函数中，而且还要具体追踪到readsect()子函数里面。找出和readsect()c语言程序的每一条语句所对应的汇编指令，回到bootmain()，然后找出把内核文件从磁盘读取到内存的那个for循环所对应的汇编语句。找出当循环结束后会执行哪条语句，在那里设置断点，继续运行到断点，然后运行完所有的剩下的语句。 
+　　追踪到bootmain()函数中，而且还要具体追踪到readsect()子函数里面。找出和readsect()c语言程序的每一条语句所对应的汇编指令，回到bootmain()，然后找出把内核文件从磁盘读取到内存的那个for循环所对应**开始和结束**的汇编语句。找出当循环结束后会执行哪条语句，在那里设置断点，继续运行到断点，然后运行完所有的剩下的语句。 
 
-#### 需要回答出下列问题
-
-1. 处理器在什么时候开始执行32位程序？到底是什么引起了16位到32位模式的切换？
-2. boot loader执行的最后一条指令是什么？它加载内核的第一条指令是什么？
-3. 内核的第一条指令是什么？
-4. 为了能够从磁盘获取整个内核，boot loader是如何决定它必须读取多少扇区的？并且它是在哪里找到这些信息的？
 
 
 #### 进行实验
@@ -87,35 +81,484 @@ si N
 1. 打开两个终端，到lab下分别运行`make qemu-gdb`和`make gdb`,在gdb下设置断点`b *0x7c00`并运行至断点位置 `c`。
 2. 发现断点处的指令就是文件**lab／boot/boot.S**中的`cli`。
 
-```
+3. 接着查看一下完整boot.S和boot.asm代码
+
+``` c
+#include <inc/mmu.h>
+
+#该文件启动CPU，切换到32-bit模式，进入C。
+#在地址0x7c00开始在实模式下（%cs=0 %ip=7c00）运行，
+#BIOS将硬盘的第一个扇区载入内存。
+
 .set PROT_MODE_CSEG, 0x8         # kernel code segment selector
 .set PROT_MODE_DSEG, 0x10        # kernel data segment selector
 .set CR0_PE_ON,      0x1         # protected mode enable flag
 
 .globl start
 start:
-  .code16                     # Assemble for 16-bit mode
-  cli                         # Disable interrupts      
-  cld                         # String operations increment
+  .code16                     # 16-bit模式下的汇编
+  cli                         # 中断标志位置0
+  cld                         # 方向标志位置0，串操作指令递增
+
+  # 设置重要的段寄存器(DS, ES, SS).
+  xorw    %ax,%ax             # 异或运算，清零
+  movw    %ax,%ds             # -> Data Segment
+  movw    %ax,%es             # -> Extra Segment
+  movw    %ax,%ss             # -> Stack Segment
+
+  # 适应 A20:
+  # 为了与早期PC向后兼容，地址总线20低，以至于高于1MB的会卷回到0。
+  # 下面的代码就是解决的这个。
+seta20.1:
+  inb     $0x64,%al               # 等到不忙时
+  testb   $0x2,%al
+  jnz     seta20.1
+
+  movb    $0xd1,%al               # 0xd1 -> 端口 0x64
+  outb    %al,$0x64
+
+seta20.2:
+  inb     $0x64,%al               # Wait for not busy
+  testb   $0x2,%al
+  jnz     seta20.2
+
+  movb    $0xdf,%al               # 0xdf -> 端口 0x60
+  outb    %al,$0x60
+
+  # 从实模式切换到保护模式，用一个bootstrap GDT和段translation，使得
+  # 虚拟地址和物理地址时等同的，这样有效的内存图就不会在切换期间被改变。
+  lgdt    gdtdesc
+  movl    %cr0, %eax
+  orl     $CR0_PE_ON, %eax
+  movl    %eax, %cr0
+  
+  # 跳到下一条指令，但是在32-bit代码段中.
+  # 将处理器切换为32-bit模式
+  ljmp    $PROT_MODE_CSEG, $protcseg
+
+  .code32                     # 32-bit模式下汇编
+protcseg:
+  # 设置保护模式下段寄存器
+  movw    $PROT_MODE_DSEG, %ax    # Our data segment selector
+  movw    %ax, %ds                # -> DS: Data Segment
+  movw    %ax, %es                # -> ES: Extra Segment
+  movw    %ax, %fs                # -> FS
+  movw    %ax, %gs                # -> GS
+  movw    %ax, %ss                # -> SS: Stack Segment
+  
+  # 设置栈指针，并且调用C。
+  movl    $start, %esp
+  call bootmain                   #调用bootmain
+
+    #include <inc/mmu.h>
+
+#该文件启动CPU，切换到32-bit模式，进入C。
+#在地址0x7c00开始在实模式下（%cs=0 %ip=7c00）运行，
+#BIOS将硬盘的第一个扇区载入内存。
+
+.set PROT_MODE_CSEG, 0x8         # kernel code segment selector
+.set PROT_MODE_DSEG, 0x10        # kernel data segment selector
+.set CR0_PE_ON,      0x1         # protected mode enable flag
+
+.globl start
+start:
+  .code16                     # 16-bit模式下的汇编
+  cli                         # 中断标志位置0
+  cld                         # 方向标志位置0，串操作指令递增
+
+  # 设置重要的段寄存器(DS, ES, SS).
+  xorw    %ax,%ax             # 异或运算，清零
+  movw    %ax,%ds             # -> Data Segment
+  movw    %ax,%es             # -> Extra Segment
+  movw    %ax,%ss             # -> Stack Segment
+
+  # 适应 A20:
+  # 为了与早期PC向后兼容，地址总线20低，以至于高于1MB的会卷回到0。
+  # 下面的代码就是解决的这个。
+seta20.1:
+  inb     $0x64,%al               # 等到不忙时
+  testb   $0x2,%al
+  jnz     seta20.1
+
+  movb    $0xd1,%al               # 0xd1 -> 端口 0x64
+  outb    %al,$0x64
+
+seta20.2:
+  inb     $0x64,%al               # Wait for not busy
+  testb   $0x2,%al
+  jnz     seta20.2
+
+  movb    $0xdf,%al               # 0xdf -> 端口 0x60
+  outb    %al,$0x60
+
+  # 从实模式切换到保护模式，用一个bootstrap GDT和段translation，使得
+  # 虚拟地址和物理地址时等同的，这样有效的内存图就不会在切换期间被改变。
+  lgdt    gdtdesc
+  movl    %cr0, %eax
+  orl     $CR0_PE_ON, %eax
+  movl    %eax, %cr0
+  
+  # 跳到下一条指令，但是在32-bit代码段中.
+  # 将处理器切换为32-bit模式
+  ljmp    $PROT_MODE_CSEG, $protcseg
+
+  .code32                     # 32-bit模式下汇编
+protcseg:
+  # 设置保护模式下段寄存器
+  movw    $PROT_MODE_DSEG, %ax    # Our data segment selector
+  movw    %ax, %ds                # -> DS: Data Segment
+  movw    %ax, %es                # -> ES: Extra Segment
+  movw    %ax, %fs                # -> FS
+  movw    %ax, %gs                # -> GS
+  movw    %ax, %ss                # -> SS: Stack Segment
+  
+  # 设置栈指针，并且调用C。
+  movl    $start, %esp
+  call bootmain                   #调用bootmain
+
+  # 如果bootmap返回了（应该不），就循环。
+spin:
+  jmp spin
+
+# Bootstrap GDT
+.p2align 2                                # force 4 byte alignment
+gdt:
+  SEG_NULL              # null seg
+  SEG(STA_X|STA_R, 0x0, 0xffffffff) # code seg
+  SEG(STA_W, 0x0, 0xffffffff)           # data seg
+
+gdtdesc:
+  .word   0x17                            # sizeof(gdt) - 1
+  .long   gdt                             # address gdt
+
+
+```
+
+4.下面是注释的main.c文件
+
+```c
+#include <inc/x86.h>
+#include <inc/elf.h>
+
+/**********************************************************************
+ * This a dirt simple boot loader, whose sole job is to boot
+ * an ELF kernel image from the first IDE hard disk.
+ *
+ * DISK LAYOUT
+ *  * 这个程序(boot.S and main.c)就是bootloader。它应该放在
+ *    磁盘的第一个扇区。
+ *
+ *  * 第二个扇区存储内核的镜像。
+ *
+ *  * 内核镜像必须时ELF格式的。
+ *
+ * BOOT UP STEPS
+ *  * 当CPU启动时，它向内存加载BIOS并且执行BIOS初始化设备，设置中断路由
+ *  * 并且向内存读入boot设备的第一个扇区，跳转至那。
+ *
+ *  * Assuming this boot loader is stored in the first sector of the
+ *    hard-drive, this code takes over...
+ *
+ *  * 控制开始于boot.S -- 这儿设置了进入保护模式和一个栈,这样C就能够执行并调用bootmain。
+ *
+ *  * bootmain() in this file takes over, reads in the kernel and jumps to it.
+ **********************************************************************/
+
+#define SECTSIZE    512
+#define ELFHDR      ((struct Elf *) 0x10000) // scratch space
+
+void readsect(void*, uint32_t);
+void readseg(uint32_t, uint32_t, uint32_t);
+
+void
+bootmain(void)
+{
+    struct Proghdr *ph, *eph;
+
+    //  阅读磁盘的第一页
+    //  调用readseg函数，这个函数有3个参数，
+    //  第一个是物理地址，第二个是页的大小，第三个是偏移量。
+    readseg((uint32_t) ELFHDR, SECTSIZE*8, 0);
+
+    // 是不是ELF格式
+    if (ELFHDR->e_magic != ELF_MAGIC)
+        goto bad;
+
+    // 加载每个程序段 (ignores ph flags)
+    ph = (struct Proghdr *) ((uint8_t *) ELFHDR + ELFHDR->e_phoff);
+    eph = ph + ELFHDR->e_phnum;
+    for (; ph < eph; ph++)
+        // p_pa is the 这个段的加载地址 (也是物理地址)
+        readseg(ph->p_pa, ph->p_memsz, ph->p_offset);
+
+    // 从EFL头中，调用整个指针。
+    // 注意：它不返回。
+    ((void (*)(void)) (ELFHDR->e_entry))();
+
+    bad:
+     outw(0x8A00, 0x8A00);
+     outw(0x8A00, 0x8E00);
+    while (1)
+        /* do nothing */;
+}
+
+// 从内核的从count到offset到物理地址‘pa’
+// Might copy more than asked
+void
+readseg(uint32_t pa, uint32_t count, uint32_t offset)
+{
+    uint32_t end_pa;
+
+    end_pa = pa + count;  //计算出这个扇区结束的物理地址
+
+    // round down to 扇区边界
+    pa &= ~(SECTSIZE - 1);
+
+    // translate from bytes to sectors, 
+    // 在扇区1开始了内核
+    offset = (offset / SECTSIZE) + 1;
+
+    // If this is too slow, we could read lots of sectors at a time.
+    // We'd write more to memory than asked, but it doesn't matter --
+    // we load in increasing order.
+    while (pa < end_pa) {
+        // Since we haven't enabled paging yet and we're using
+        // an identity segment mapping (see boot.S), we can
+        // use physical addresses directly.  This won't be the
+        // case once JOS enables the MMU.
+        readsect((uint8_t*) pa, offset);
+        pa += SECTSIZE;
+        offset++;
+    }
+}
+
+void
+waitdisk(void)
+{
+    // wait for disk reaady
+    while ((inb(0x1F7) & 0xC0) != 0x40)
+        /* do nothing */;
+}
+
+void
+readsect(void *dst, uint32_t offset)
+{
+    // wait for disk to be ready
+    waitdisk();
+
+    outb(0x1F2, 1);     // count = 1
+    outb(0x1F3, offset);
+    outb(0x1F4, offset >> 8);
+    outb(0x1F5, offset >> 16);
+    outb(0x1F6, (offset >> 24) | 0xE0);
+    outb(0x1F7, 0x20);  // cmd 0x20 - read sectors
+
+    // wait for disk to be ready
+    waitdisk();
+
+    // read a sector
+    insl(0x1F0, dst, SECTSIZE/4);
+}
 ```
 
 
+#### 需要回答出下列问题
 
-<font color="#FFB6C1">**待更新**</font>
+1. 处理器在什么时候开始执行32位程序？到底是什么引起了16位到32位模式的切换？
+    在boot.S中将处理器切换为32-bit模式的指令是```ljmp    $PROT_MODE_CSEG, $protcseg```,对应的boot.asm是```7c2d:    ea 32 7c 08 00 66 b8    ljmp   $0xb866,$0x87c32```
+
+2. boot loader执行的最后一条指令是什么？它加载内核的第一条指令是什么？
+    boot loader的最后一条指令就是在main.c中的```((void (*)(void)) (ELFHDR->e_entry))();```,该指令上的注释表示准备读区ELF的header point，也就是操作系统内核的start address。
+
+    在**obj/kernel/kernel.sym**中第一行就是```0010000c T _start```,而从**obj/kernel/kernel.asm**中的
+
+    ``` c
+    .globl entry
+    entry:
+    movw    $0x1234,0x472       # warm boot
+    ```
+
+    看出加载内核的第一条指令就是
+    ```c
+    movw    $0x1234,0x472  
+    ```
 
 
+3. 内核的第一条指令是什么？
+    问题2的回答也回答了该问题。
+
+4. 为了能够从磁盘获取整个内核，boot loader是如何决定它必须读取多少扇区的？并且它是在哪里找到这些信息的？
+
+bootload决定它读区多少扇区是从储存在ELF的header里的信息得知的。通过```if (ELFHDR->e_magic != ELF_MAGIC)```判断是不是ELF文件，是的话就加载程序段
+
+```c
+ph = (struct Proghdr *) ((uint8_t *) ELFHDR + ELFHDR->e_phoff);
+eph = ph + ELFHDR->e_phnum;
+```
+
+###加载内核
+
+这节主要是继续研究main.c文件的代码的细节，因此需要对C语言指针部分进行复习。
+
+>练习4:阅读关于C的指针，参考书有[The C Programming Language by Brian Kernighan and Dennis Ritchie (known as 'K&R')]()。阅读其中的5.1到5.5。并确保理解**pointers.c**，弄明白指针值是从哪里来的。尤其是弄明白在第1行和第6行的指针地址是怎么来的，第2行到第4行的值是怎么得到的，为什么第5行输出的值似乎有错误。建议如果对C的指针不熟的话，千万不要跳过这个练习。
+
+运行完pointer.c代码会输出如下结果
+```c
+shijiandeMacBook-Pro:Desktop alvin$ ./pointer 
+1: a = 0x7fff56c748e0, b = 0x7f8ff74027d0, c = 0x100000000
+2: a[0] = 200, a[1] = 101, a[2] = 102, a[3] = 103
+3: a[0] = 200, a[1] = 300, a[2] = 301, a[3] = 302
+4: a[0] = 200, a[1] = 400, a[2] = 301, a[3] = 302
+5: a[0] = 200, a[1] = 128144, a[2] = 256, a[3] = 302
+6: a = 0x7fff56c748e0, b = 0x7fff56c748e4, c = 0x7fff56c748e1
+
+```
+
+pointer.c的代码如下：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void f(void)
+{
+    int a[4];
+    int *b = malloc(16);
+    int *c;
+    int i;
+
+    printf("1: a = %p, b = %p, c = %p\n", a, b, c);
+
+    c = a;
+    for (i = 0; i < 4; i++)
+    a[i] = 100 + i;
+    c[0] = 200;
+    printf("2: a[0] = %d, a[1] = %d, a[2] = %d, a[3] = %d\n",
+       a[0], a[1], a[2], a[3]);
+
+    c[1] = 300;
+    *(c + 2) = 301;
+    3[c] = 302;
+    printf("3: a[0] = %d, a[1] = %d, a[2] = %d, a[3] = %d\n",
+       a[0], a[1], a[2], a[3]);
+
+    c = c + 1;
+    *c = 400;
+    printf("4: a[0] = %d, a[1] = %d, a[2] = %d, a[3] = %d\n",
+       a[0], a[1], a[2], a[3]);
+
+    c = (int *) ((char *) c + 1);
+    *c = 500;
+    printf("5: a[0] = %d, a[1] = %d, a[2] = %d, a[3] = %d\n",
+       a[0], a[1], a[2], a[3]);
+
+    b = (int *) a + 1;
+    c = (int *) ((char *) a + 1);
+    printf("6: a = %p, b = %p, c = %p\n", a, b, c);
+}
+
+int
+main(int ac, char **av)
+{
+    f();
+    return 0;
+}
+
+```
+
+这里跳过这个练习。
 
 
+在深入main.c之前，需要了解ELF二进制文件。编译并链接比如JOS内核这样的C程序，编译器会将源文件(.c)转为包含汇编指令的目标文件(.o)。接着链接器把所有的目标文件组合成一个单独的二进制镜像（binary image），比如**obj/kern/kernel**，这种文件就是ELF(是可执行可链接形式的缩写)。
+
+当前只需要知道，可执行的ELF文件由带有加载信息的头，多个程序段表组成。每个程序段表是一个连续代码块或者数据，它们要被加载到内存具体地址中。boot loader不修改源码和数据，直接加载到内存中并运行。
+
+ELF开头是固定长度的ELF头，之后是一个可变长度的程序头，它列出了需要加载的程序段。ELF头的定义在 inc/elf.h 中。
+注意观察**inc/elf.h**，我们感兴趣的程序有：
+
+- .text: 程序执行指令
+- .rodata: 只读数据, 例如ASCII字符串常量。(We will not bother setting up the hardware to prohibit writing, however.)
+- .data: 数据部分的初始化数据
+
+在kernel中考察所有的name，sizes和link address可以通过typing：```objdump -h obj/kern/kernel```
+
+![kernel](https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_objdump_kernel.PNG?raw=true)
+
+重点关注.text段的VMA（链接地址）和LMA（加载地址）。一个段的加载地址是该段需要载入内存的内存地址。段的链接地址是该段要去执行的内存地址。
+通常链接地址和加载地址是一样的。例如，boot loader的.text段:
+
+```c
+objdump -h obj/boot/boot.out
+```
+
+![boot](https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_objdump_bot.PNG?raw=true)
+
+bootloader用ELF程序头来决定怎样去加载段。程序头（The program headers）表示了哪部分的ELF
+：
+
+```c
+objdump -x obj/kern/kernel
+```
 
 
+![x](https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_x_%20objdump_kernel.PNG?raw=true)
+
+其中Program Headers下面列出的程序头中，开头的LOAD代表已经加载到内存中了，另外显示出了虚拟地址(vaddr)，物理地址(paddr)以及存放区域的大小(memsz和filesz)。
+
+回到**boot/main.c**,每个程序头的ph->p_pa 包括了段的目标物理地址。 (在这个例子中，它确实就是一个物理地址，虽然ELF要求是模糊的).
+
+BIOS开始在地址0x7c00加载boot扇区到内存，因此这就是boot扇区的加载地址。这也是boot扇区从哪里执行的位置，同样也是链接地址。在 boot/Makefrag 中，通过传 -Ttext 0x7C00 这个参数给链接程序设置了链接地址，因此链接程序在生成的代码中产生正确的内存地址。
+
+>练习5:再次追踪bootloader的一开始的指令，并且辨别第一个指令是否“break”或如果boot loader的链接地址错误，第一个指令是否会出错。然后修改在boot/Makefrag的链接地址使其出错，运行```make clean```,重新用```make```编译lab，再次追踪boot loader看看会发生什么。当然，做完后别忘恢复boot/Makefrag，并且```make clean```。
 
 
+这里将lab复制，更名为lab1，然后修改```Makefrag```文件：
 
 
+```c
+$(OBJDIR)/boot/boot: $(BOOT_OBJS)
+    @echo + ld boot/boot
+    $(V)$(LD) $(LDFLAGS) -N -e start -Ttext 0x9C00 -o $@.out $^
+    $(V)$(OBJDUMP) -S $@.out >$@.asm
+    $(V)$(OBJCOPY) -S -R ".eh_frame" -O binary $@.out $@
+    $(V)perl boot/sign.pl $(OBJDIR)/boot/boot
+```
+
+这样将-Ttest后到地址改为了0x9C00，通过 ```make clean```并重新```make```后，若再想```make qemu```就会出错了：
+
+![error make qemu](https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_make_clean_error.PNG?raw=true)
+
+同时在boot.asm中，开始地址也发生了改变：
+
+```c
+00009c00 <start>:
+.set CR0_PE_ON,      0x1         # protected mode enable flag
+```
 
 
+*那为什么修改Makefrag后会出错呢？*
+
+一旦修改了-Ttest后的参数，由于这个参数是链接地址，若参数不对，那么链接程序就产生了错误的内存地址。
 
 
+回顾内核的加载地址和链接地址，不像boot loader，这两个地址并不一样：内核告诉boot loader把它加载到一个低地址内存（1M），但它却想要从一个高地址上去执行。
+
+还有一个ELF的头文件信息比较重要，那就是e_entry。它有程序的入口指针的链接地址：程序需要在程序文本段段内存地址执行，通过命令看到入口指针：
+
+！[entry](https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_objdump_f.PNG?raw=true)
+
+
+现在应该能理解在main.c中的ELF loader。它在段的加载地址上读取了从磁盘到内存的每一个内存段，并且跳到内核入口指针。
+
+>练习6：可以用GDB的命令x测试我们的内存。使用GDB的 *x/Nx ADDR*可以打印内存地址ADDR的 N 个字。字的大小分情况的，GDB中一个字是两个字节。
+重置机器，在BIOS进入到boot loader，查看BIOS启动时0x00100000处的8个words，然后继续到bootloader进入内核的位置，再查看，发现8个words的内容不同。为什么？第二个断点是什么？（just think）
+
+
+##参考资料：
+
+1. MIT6.828课件
+2. 博文：[1](http://xinqiu.me/2016/10/15/MIT-6.828-1/);
+3. 博文：[2](http://blog.csdn.net/bysui/article/details/51453329).
 
 
 

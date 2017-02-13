@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "MIT6.828 Lab1 Booting a PC Part 2"
-tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828L1]
+tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828L1,boot loader]
 comments: true
 description: "这是这门课的实验一的第二部分，主要是对BIOS的理解，以及怎样将控制权移交。"
 keywords: "OS"

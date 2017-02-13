@@ -404,7 +404,7 @@ eph = ph + ELFHDR->e_phnum;
 
 运行完pointer.c代码会输出如下结果
 
-``` 
+```
 shijiandeMacBook-Pro:Desktop alvin$ ./pointer 
 1: a = 0x7fff56c748e0, b = 0x7f8ff74027d0, c = 0x100000000
 2: a[0] = 200, a[1] = 101, a[2] = 102, a[3] = 103

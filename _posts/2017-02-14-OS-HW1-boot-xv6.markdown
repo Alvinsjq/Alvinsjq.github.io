@@ -1,0 +1,190 @@
+---
+layout: post
+title:  "MIT6.828 HW 1:boot xv6"
+tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828HW, xv6]
+comments: true
+description: "这是课程的作业1:启动xv6操作系统。"
+keywords: "OS,xv6"
+date:   2017-02-14 13:36:58 +0800
+---
+
+
+## Boot xv6
+首先是将课程项目clone到本地
+
+```
+$ mkdir 6.828
+$ cd 6.828
+$ git clone git://github.com/mit-pdos/xv6-public.git
+Cloning into 'xv6-public'...
+...
+$
+```
+
+然后进入目录，
+
+```
+$ cd xv6-public
+$ make
+...
+gcc -O -nostdinc -I. -c bootmain.c
+gcc -nostdinc -I. -c bootasm.S
+ld -m    elf_i386 -N -e start -Ttext 0x7C00 -o bootblock.o bootasm.o bootmain.o
+objdump -S bootblock.o > bootblock.asm
+objcopy -S -O binary -j .text bootblock.o bootblock
+...
+$ 
+```
+
+这样就将xv6编译完毕，就可以做homework了。
+
+如何用```make qemu-gdb```和```gdb```命令，可以到之前的[博文](https://alvinsjq.github.io/2017/OS-Lab1/)上找到解决方法，这里直接做homework。
+
+
+
+## 找到地址和设置断点
+
+寻找_start的地址和内核的入口地址，输入命令即可得到：
+
+``` c
+$ nm kernel | grep _start
+8010a48c D _binary_entryother_start
+8010a460 D _binary_initcode_start
+0010000c T _start
+```
+
+
+然后在_start的上设置断点，并继续执行
+
+``` 
+b * 0x010000c
+c 
+```
+
+接着是具体的作业练习：主要是弄清楚栈里是什么？（what is on the stack？）
+
+通过一下命令可以看到寄存器和栈上的数据，对所得到的结果，对非零的栈的值进行简短的解释。
+
+```
+(gdb) info reg
+...
+(gdb) x/24x $esp
+...
+(gdb)
+```
+
+
+查询```bootasm.S```、```bootmian.c```和```bootblock.asm```这些文件是很方便的。参考页面也有关于x86的汇编文档，如果想要弄清楚特定指令的语义就可以从那找到。作业是要在我们刚进入xv6内核之后，理解和解释上面所看到的栈的内容。有一个方法是在早期boot期间，观察stack是怎样并在哪里建立起来的并且进行追踪。以下是一些问题纲要：
+
+1. 在0x7c00设置一个断点，应该可以发现这是启动的第一条指令。bootasm.S的开始执行的地方。
+    在```bootblock.asm```中可以发现
+
+    ```c
+    00007c00 <start>:
+    # with %cs=0 %ip=7c00.
+
+    .code16                       # Assemble for 16-bit mode
+    .globl start
+    start:
+     cli                          # BIOS enabled interrupts; disable
+       7c00:   fa                      cli 
+    ```
+
+2. 接下来，利用gdb中的si命令单步执行。找到bootasm.S中stack pointer是在哪里初始化的？（单步执行，直到你找到某条指令把某个值移动到了%esp寄存器中。%esp也就是栈指针。)
+    同样通过gdb的```si```命令以及```bootblock.asm```可以看出在0x7c43处，开始初始化sp：
+
+    ```c
+    # Set up the stack pointer and call into C.
+    movl    $start, %esp
+    7c43:   bc 00 7c 00 00          mov    $0x7c00,%esp
+    ```
+
+
+3. 当代码跳转到bootmain的时候，这个时候栈里面又存放的是什么？
+    跳转到bootmain()时，地址为：
+
+    ```c
+    call    bootmain
+    7c48:   e8 e9 00 00 00          call   7d36 <bootmain>
+    ```
+    
+    用gdb的```info reg```得到：
+
+    ```c 
+    (gdb) si
+    => 0x7c48:  call   0x7d36
+    0x00007c48 in ?? ()
+    (gdb) info reg
+    eax            0x0  0
+    ecx            0x0  0
+    edx            0x80 128
+    ebx            0x0  0
+    esp            0x7c00   0x7c00   //stack pointer指的地址
+    ebp            0x0  0x0
+    esi            0x0  0
+    edi            0x0  0
+    eip            0x7c48   0x7c48
+    eflags         0x6  [ PF ]
+    cs             0x8  8
+    ss             0x10 16
+    ds             0x10 16
+    es             0x10 16
+    fs             0x0  0
+    gs             0x0  0
+    ```
+
+ 
+4. 在bootmain里面的第一条汇编指令对这个stack做啥了？可以查看bootblock.asm，bootmain就在里面。
+
+```
+    void
+    bootmain(void)
+    {
+        7d36:   55                      push   %ebp
+        7d37:   89 e5                   mov    %esp,%ebp
+        7d39:   57                      push   %edi
+        7d3a:   56                      push   %esi
+        7d3b:   53                      push   %ebx
+        7d3c:   83 ec 1c                sub    $0x1c,%esp
+        ... 
+```
+
+
+
+5. 查看在bootblock.asm里面的bootmain，找到调用call。这个call会把%eip指向0x10000c。这个call对栈又做了啥？
+
+实际上bootmain.c主要做的事情就是读取kernel，并且跳转到kernel处开始执行。加载的时候，是把kernel加载到了0x10000内存地址处。call还是把返回地址压栈了。
+
+6. 提交：x/24x %esp的有效输出，应该就是说非0的那一部分，以及你的comment。把这个作业写到hwN.txt里面。N表示的是第几次作业。
+
+```c
+Breakpoint 1, 0x0010000c in ?? ()
+(gdb) info reg
+eax            0x0  0
+ecx            0x0  0
+edx            0x1f0    496
+ebx            0x10074  65652
+esp            0x7bcc   0x7bcc
+ebp            0x7bf8   0x7bf8
+esi            0x10074  65652
+edi            0x0  0
+eip            0x10000c 0x10000c
+eflags         0x46 [ PF ZF ]
+cs             0x8  8
+ss             0x10 16
+ds             0x10 16
+es             0x10 16
+fs             0x0  0
+gs             0x0  0
+
+(gdb) x/24x $esp
+0x7bcc: 0x00007dbf  0x00000000  0x00000000  0x00000000
+0x7bdc: 0x00000000  0x00000000  0x00000000  0x00000000
+0x7bec: 0x00000000  0x00000000  0x00000000  0x00000000
+0x7bfc: 0x00007c4d  0x8ec031fa  0x8ec08ed8  0xa864e4d0
+0x7c0c: 0xb0fa7502  0xe464e6d1  0x7502a864  0xe6dfb0fa
+0x7c1c: 0x16010f60  0x200f7c78  0xc88366c0  0xc0220f01
+```
+
+>first commit HW1:
+作业中其实还有很多疑惑，经过后面的学习还是得再将作业回顾一下。

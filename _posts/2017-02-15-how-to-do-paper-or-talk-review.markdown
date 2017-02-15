@@ -5,7 +5,7 @@ tags: [learning methods,CMU,master]
 comments: true
 description: "这篇文章主要是给CMU的计算机体系结构课程中的一篇阅读材料进行归纳整理，主要内容是怎样给论文和讲座做一个好一点的评论。"
 keywords: "paper,CMU"
-date:   2017—02-15 22:05:28 +0800
+date:   2017-02-15 22:05:28 +0800
 ---
 
 

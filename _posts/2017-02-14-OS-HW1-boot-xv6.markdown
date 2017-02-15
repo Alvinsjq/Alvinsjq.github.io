@@ -79,16 +79,16 @@ c
 1. 在0x7c00设置一个断点，应该可以发现这是启动的第一条指令。bootasm.S的开始执行的地方。
     在```bootblock.asm```中可以发现
 
-    ```c
+```
     00007c00 <start>:
     # with %cs=0 %ip=7c00.
 
-    .code16                       # Assemble for 16-bit mode
+    .code16                      # Assemble for 16-bit mode
     .globl start
     start:
-     cli                          # BIOS enabled interrupts; disable
+     cli                        # BIOS enabled interrupts; disable
        7c00:   fa                      cli 
-    ```
+```
 
 2. 接下来，利用gdb中的si命令单步执行。找到bootasm.S中stack pointer是在哪里初始化的？（单步执行，直到你找到某条指令把某个值移动到了%esp寄存器中。%esp也就是栈指针。)
     同样通过gdb的```si```命令以及```bootblock.asm```可以看出在0x7c43处，开始初始化sp：

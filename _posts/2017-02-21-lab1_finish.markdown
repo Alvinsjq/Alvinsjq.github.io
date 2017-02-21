@@ -1,0 +1,264 @@
+---
+layout: post
+title:  "MIT6.828 Lab1 Booting a PC Part 3 exercise 9-12"
+tags: [MIT6.828, Operating System, 操作系统, 学习历程 , kernel]
+comments: true
+description: "深入JOS的内核细节"
+keywords: "OS,kernel"
+date:   2017-02-15 14:40:22 +0800
+---
+
+
+## 实验一大纲
+- 环境配置
+- 第一部分：PC Bootstrap
+    - x86汇编
+    - 模拟x86
+    -  PC的物理地址空间
+    -  ROM BIOS
+- 第二部分：The Boot Loader
+    - 加载内核
+- 第三部分：The kernel
+
+
+## 第三部分 The kernel
+
+### 栈 the stack
+
+在本实验的最后一部分，我们将探讨一下C语言是如何在x86机器上使用堆栈的。并且我们还会重新编写一个新的kernel monitor子程序。这个程序可以记录堆栈的变化轨迹：轨迹是由一系列被保存到堆栈的IP寄存器的值组成的，之所以会产生这一系列被保存的IP寄存器的值，是因为我们执行了一个程序，程序中包括一系列嵌套的call指令。
+
+>练习9:内核在哪里初始化它的栈，并且栈到底在内存的什么地方？内核又是怎样给它的栈保留空间的？栈指针初始是指向保留区域的哪一端呢？
+
+1. 内核在哪里初始化
+
+经过boot.S和main.c函数，知道在bootmain函数中进入entry，也就是entry.S:
+
+```c 
+relocated:
+
+    # Clear the frame pointer register (EBP)
+    # so that once we get into debugging C code,
+    # stack backtraces will be terminated properly.
+    movl    $0x0,%ebp           # nuke frame pointer
+
+    # Set the stack pointer
+    movl    $(bootstacktop),%esp         
+```
+
+kernel.asm中：
+```c
+  # Clear the frame pointer register (EBP)
+  # so that once we get into debugging C code,
+  # stack backtraces will be terminated properly.
+  movl  $0x0,%ebp     # nuke frame pointer
+  f010002f: bd 00 00 00 00        mov    $0x0,%ebp
+
+  # Set the stack pointer
+  movl  $(bootstacktop),%esp
+  f0100034: bc 00 00 11 f0        mov    $0xf0110000,%esp
+```
+
+这两个指令做的就是对ebp和esp的修改，因此内核就在0xf0110000处开始初始化了栈。
+
+
+2. 栈到底在内存的什么地方？
+
+在GDB中设置断点，输入命令c和si得到：
+
+```
+The target architecture is assumed to be i8086
+[f000:fff0]    0xffff0: ljmp   $0xf000,$0xe05b
+0x0000fff0 in ?? ()
++ symbol-file obj/kern/kernel
+(gdb) b * 0x7d65
+Breakpoint 1 at 0x7d65
+(gdb) c
+Continuing.
+The target architecture is assumed to be i386
+=> 0x7d65:  call   *0x10018
+
+Breakpoint 1, 0x00007d65 in ?? ()
+(gdb) si
+=> 0x10000c:  movw   $0x1234,0x472
+```
+
+此时指令地址在0x10000c处，这也是系统内核的第一条指令；
+
+下面一段代码是将虚拟地址转换为真实地址：
+
+```c
+  movl  $(RELOC(entry_pgdir)), %eax
+  movl  %eax, %cr3
+  # Turn on paging.
+  movl  %cr0, %eax
+  orl $(CR0_PE|CR0_PG|CR0_WP), %eax
+  movl  %eax, %cr0
+```
+
+这段代码的功能是将[0xf0000000-0xf0400000]这4MB大小的虚拟地址空间映射为[0x00000000-0x00400000]的物理地址空间。会发现这两个空间的间隔是一样的。
+
+首先entry_pgdir是页表，而RELOC可以计算该页表的起始物理地址，第一行代码将值赋值给%eax，接着又将该值赋值给%cr3寄存器，因此该寄存器存放着页表的起始地址。接着就是打开页表。
+
+下面再看：
+```c
+=> 0x100028:  mov    $0xf010002f,%eax
+0x00100028 in ?? ()
+(gdb) 
+=> 0x10002d:  jmp    *%eax
+0x0010002d in ?? ()
+```
+
+不难发现relocated的地址是0xf010002f，那么分页系统就会将该地址转化为真实的物理地址。
+
+最重要的两句指令就是：
+
+```c
+=> 0xf010002f <relocated>:  mov    $0x0,%ebp
+relocated () at kern/entry.S:74
+74    movl  $0x0,%ebp     # nuke frame pointer
+(gdb) 
+=> 0xf0100034 <relocated+5>:  mov    $0xf0110000,%esp
+relocated () at kern/entry.S:77
+77    movl  $(bootstacktop),%esp
+(gdb) 
+=> 0xf0100039 <relocated+10>: call   0xf010009d <i386_init>
+80    call  i386_init
+```
+
+对应的enrty.S的代码是：
+
+```c
+  # Clear the frame pointer register (EBP)
+  # so that once we get into debugging C code,
+  # stack backtraces will be terminated properly.
+  movl  $0x0,%ebp     # nuke frame pointer
+
+  # Set the stack pointer
+  movl  $(bootstacktop),%esp
+
+  # now to C code
+  call  i386_init
+```
+
+它们设置了寄存器ebp和esp的值，ebp变为0，而esp修改为bootstacktop的值，该值为0xf0110000，这就是栈顶指针。
+
+注意这样一段代码：
+
+```
+.data
+###################################################################
+# boot stack
+###################################################################
+  .p2align  PGSHIFT   # force page alignment
+  .globl    bootstack
+bootstack:
+  .space    KSTKSIZE
+  .globl    bootstacktop   
+bootstacktop:
+```
+
+其中KSTKSIZE有预定义
+```c 
+#define KSTKSIZE  (8*PGSIZE) 
+```
+计算一下大概就是32KB，而栈顶地址为0xf0110000。
+
+
+当然这里的
+```c
+#define KSTKSIZE  (8*PGSIZE)
+```
+其实也就是内核为栈提供的空间。
+
+3. 栈指针指向哪一端？
+最高地址那端。
+
+x86栈指针指向栈中目前被使用的部分的最低地址。在该地址之下的地址都是没被利用的栈空间。向栈中Push一个值包括降低栈指针，并将值写入栈指针指向的空间。从栈中POP一个值包括读取栈指针指向的空间的值，然后增加栈指针。在32-bit模式，栈只能保证32bit的值，并且栈指针总是被4整除。各种x86指令，例如call，用栈指针寄存器是hard-wired。
+
+ebp（基指针）寄存器，相反，由于软件惯例主要与栈相关。当进入一个C函数，函数的前件代码通常通过将基指针Push到栈中来保存先前函数的基指针。然后在该函数期间，将目前的esp的值拷贝到ebp。若所有的程序中的函数都遵循这个习惯，那么在该程序执行的过程中，用一下保存的ebp指针链追踪栈，并确定到底哪个函数调用的嵌套造成该程序的特殊的指针。这个能力尤为重要，一个栈道反追踪会让你找到冒犯的函数。
+
+>练习10:为了能够更好的了解在x86上的C程序调用过程的细节，我们首先找到在obj/kern/kern.asm中test_backtrace子程序的地址，设置断点，并且探讨一下在内核启动后，这个程序被调用时发生了什么。对于这个循环嵌套调用的程序test_backtrace，它一共压入了多少信息到堆栈之中。并且它们都代表什么含义？
+
+
+首先函数test_backtrace在kern：
+```c
+// Test the stack backtrace function (lab 1 only)
+void
+test_backtrace(int x)
+{
+f0100040: 55                    push   %ebp                    =========>开始地址
+f0100041: 89 e5                 mov    %esp,%ebp
+f0100043: 53                    push   %ebx
+f0100044: 83 ec 14              sub    $0x14,%esp
+f0100047: 8b 5d 08              mov    0x8(%ebp),%ebx
+  cprintf("entering test_backtrace %d\n", x);
+f010004a: 89 5c 24 04           mov    %ebx,0x4(%esp)
+f010004e: c7 04 24 80 19 10 f0  movl   $0xf0101980,(%esp)
+f0100055: e8 d4 08 00 00        call   f010092e <cprintf>
+  if (x > 0)
+f010005a: 85 db                 test   %ebx,%ebx
+f010005c: 7e 0d                 jle    f010006b <test_backtrace+0x2b>
+    test_backtrace(x-1);
+f010005e: 8d 43 ff              lea    -0x1(%ebx),%eax
+f0100061: 89 04 24              mov    %eax,(%esp)
+f0100064: e8 d7 ff ff ff        call   f0100040 <test_backtrace>
+f0100069: eb 1c                 jmp    f0100087 <test_backtrace+0x47>
+  else
+    mon_backtrace(0, 0, 0);
+f010006b: c7 44 24 08 00 00 00  movl   $0x0,0x8(%esp)
+f0100072: 00 
+f0100073: c7 44 24 04 00 00 00  movl   $0x0,0x4(%esp)
+f010007a: 00 
+f010007b: c7 04 24 00 00 00 00  movl   $0x0,(%esp)
+f0100082: e8 18 07 00 00        call   f010079f <mon_backtrace>
+  cprintf("leaving test_backtrace %d\n", x);
+f0100087: 89 5c 24 04           mov    %ebx,0x4(%esp)
+f010008b: c7 04 24 9c 19 10 f0  movl   $0xf010199c,(%esp)
+f0100092: e8 97 08 00 00        call   f010092e <cprintf>
+}
+f0100097: 83 c4 14              add    $0x14,%esp
+f010009a: 5b                    pop    %ebx
+f010009b: 5d                    pop    %ebp
+f010009c: c3                    ret    
+```
+
+
+backtrace函数应该展示以下框架的信息：
+
+```
+Stack backtrace:
+  ebp f0109e58  eip f0100a62  args 00000001 f0109e80 f0109e98 f0100ed2 00000031
+  ebp f0109ed8  eip f01000d6  args 00000000 00000000 f0100058 f0109f28 00000061
+  ...
+```
+
+
+每一行包括ebp、eip和args。
+ebp：被函数利用的指向栈的基指针；
+eip：函数返回的指令指针；
+args：前5个arguments，在函数被调用之前被push到栈。
+
+
+第一行表示的就是正在执行的函数，也就是mon_backtrace本身，第二行反映的是调用mon_backtrace的函数，第三行表示的是调用上一行函数的函数，以此类推。你需要打印出所有的栈信息。通过学习kern/entry.S你会发现又一个容易的方法来分辨何时停止。
+
+
+>练习11:实现上面的backtrace函数。用和考试一样的格式，不然会与成绩脚本冲突。运行```make grade```看看是否和成绩脚本一致，如果不的话要对其进行修改。
+
+
+此时，你的backtrace函数应该在栈上给你函数调用的地址，这个栈导致了mon_backtrace()的执行。然而你往往会想知道对应的那些地址的函数名。例如你想知道哪个函数会包含可以使内核死机的bug。
+
+为了帮助你实现这个功能，我们提供函数debuginfo_eip()，查看eip的符号表并返回那些地址的调试信息。这个函数在kern/kdebug.c定义了。
+
+
+
+> 练习12:修改你的栈backtrace函数，对每一eip，展示对应的函数名、源文件名、行数。 
+
+
+
+
+
+
+
+
+
+

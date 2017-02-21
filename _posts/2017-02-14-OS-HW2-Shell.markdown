@@ -1,0 +1,320 @@
+---
+layout: post
+title:  "MIT6.828 HW 2:Shell"
+tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828HW, xv6,shell]
+comments: true
+description: "这是课程的作业2:熟悉shell。"
+keywords: "OS,xv6，shell"
+date:   2017-02-21 16:36:58 +0800
+---
+
+## 分析sh.c代码
+### 所有的命令都至少有一个type：
+
+```c
+// All commands have at least a type. Have looked at the type, the code
+// typically casts the *cmd to some specific cmd type.
+struct cmd {
+  int type;          //  ' ' (exec), | (pipe), '<' or '>' for redirection
+};
+```
+
+### cmd结构是一个基础结构，其他的具体的命令的结构则为*cmd，例如下面这些具体的结构，
+
+```c
+struct cmd* execcmd(void)
+{
+  struct execcmd *cmd;
+
+  cmd = malloc(sizeof(*cmd));
+  memset(cmd, 0, sizeof(*cmd));
+  cmd->type = ' ';
+  return (struct cmd*)cmd;
+}
+
+struct cmd* redircmd(struct cmd *subcmd, char *file, int type)
+{
+  struct redircmd *cmd;
+
+  cmd = malloc(sizeof(*cmd));
+  memset(cmd, 0, sizeof(*cmd));
+  cmd->type = type;
+  cmd->cmd = subcmd;
+  cmd->file = file;
+  cmd->mode = (type == '<') ?  O_RDONLY : O_WRONLY|O_CREAT|O_TRUNC;
+  cmd->fd = (type == '<') ? 0 : 1;
+  return (struct cmd*)cmd;
+}
+
+struct cmd* pipecmd(struct cmd *left, struct cmd *right)
+{
+  struct pipecmd *cmd;
+
+  cmd = malloc(sizeof(*cmd));
+  memset(cmd, 0, sizeof(*cmd));
+  cmd->type = '|';
+  cmd->left = left;
+  cmd->right = right;
+  return (struct cmd*)cmd;
+}
+```
+
+execcmd指代可以直接执行的命令:
+
+```c
+struct execcmd {
+  int type;              // ' '
+  char *argv[MAXARGS];   // arguments to the command to be exec-ed
+};
+```
+
+
+重定向输入输出命令：
+
+```c
+struct redircmd {
+  int type;          // < or > 
+  struct cmd *cmd;   // 要运行的命令 (e.g., an execcmd)
+  char *file;        // 输入／输出文件
+  int mode;          // 文件描述符号
+};
+```
+
+管道命令，前一个命令的结果是后一个命令的输入：
+
+```c
+struct pipecmd {
+  int type;          // |
+  struct cmd *left;  // 左边的管道
+  struct cmd *right; // 右边的管道
+};
+```
+
+
+### 执行命令主要是函数runcmd,在这里哪个命令类型先来
+
+```c
+void
+runcmd(struct cmd *cmd)
+{
+  int p[2], r;
+  struct execcmd *ecmd;
+  struct pipecmd *pcmd;
+  struct redircmd *rcmd;
+
+  if(cmd == 0)
+    exit(0);
+  
+  switch(cmd->type){
+  default:
+    fprintf(stderr, "unknown runcmd\n");
+    exit(-1);
+
+  case ' ':
+    ecmd = (struct execcmd*)cmd;
+    if(ecmd->argv[0] == 0)
+      exit(0);
+    fprintf(stderr, "exec not implemented\n");
+    // Your code here ...
+    break;
+
+  case '>':
+  case '<':
+    rcmd = (struct redircmd*)cmd;
+    fprintf(stderr, "redir not implemented\n");
+    // Your code here ...
+    runcmd(rcmd->cmd);
+    break;
+
+  case '|':
+    pcmd = (struct pipecmd*)cmd;
+    fprintf(stderr, "pipe not implemented\n");
+    // Your code here ...
+    break;
+  }    
+  exit(0);
+}
+```
+
+
+### getcmd函数主要是检测用户输入的指令是不是标准的stdin，将用户输入放进buf：
+
+```c
+int
+getcmd(char *buf, int nbuf)
+{
+  
+  if (isatty(fileno(stdin)))
+    fprintf(stdout, "6.828$ ");
+  memset(buf, 0, nbuf);
+  fgets(buf, nbuf, stdin);
+  if(buf[0] == 0) // EOF
+    return -1;
+  return 0;
+}
+
+```
+
+
+### 接着就是mian函数了
+main函数先查看是不是cd命令，若是cd命令，那么进行系统调用。若不是cd命令，则调用fork，创建子进程，并运行runcmd()。
+
+```c
+int
+main(void)
+{
+  static char buf[100];
+  int fd, r;
+
+  // 读取并运行command
+  while(getcmd(buf, sizeof(buf)) >= 0){
+    if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
+      // Clumsy but will have to do for now.
+      // Chdir has no effect on the parent if run in the child.
+      buf[strlen(buf)-1] = 0;  // chop \n
+      if(chdir(buf+3) < 0)
+        fprintf(stderr, "cannot cd %s\n", buf+3);
+      continue;
+    }
+    if(fork1() == 0)          // 返回的是0，因此为子进程，在子进程里运行runcmd函数
+      runcmd(parsecmd(buf));
+    wait(&r);
+  }
+  exit(0);
+}
+```
+
+
+fork函数为：
+
+```c
+int
+fork1(void)
+{
+  int pid;
+  
+  pid = fork();
+  if(pid == -1)
+    perror("fork");
+  return pid;
+}
+```
+
+
+## 实现' '、'<'、'>'和'|'
+由于sh.c 文件不完整，因此输入命令会出现这样的错误：
+
+```c
+alvin@AlvinUbuntu:~/6.828/lab/shell$ gcc sh.c
+alvin@AlvinUbuntu:~/6.828/lab/shell$ ./a.out < t.sh
+redir not implemented
+exec not implemented
+pipe not implemented
+exec not implemented
+exec not implemented
+pipe not implemented
+exec not implemented
+```
+
+因此我们需要对其缺省的部分进行补充，
+
+首先是实现执行命令代码，来自bysui的一篇博文及其[源码](https://github.com/bysui/mit6.828/blob/master/hw/shell/sh_completion.c),实现这个方法的大致思路上，调用／bin目录下的命令，并用execv函数实现:
+
+```c
+case ' ':
+    ecmd = (struct execcmd*)cmd;
+    if(ecmd->argv[0] == 0)
+      exit(0);
+    //fprintf(stderr, "exec not implemented\n");
+    if(!access(ecmd->argv[0], F_OK))  //cmd  exists in current directory or not
+        execv(ecmd->argv[0], ecmd->argv);
+    else{
+        char *path = (char*)malloc(150*sizeof(char));
+        char *root = "/bin/";
+        strcpy(path, root);
+        strcat(path, ecmd->argv[0]);     //cmd exists in /bin  or not
+        if(!access(path, F_OK))
+            execv(path, ecmd->argv);
+        else
+           fprintf(stderr, "%s: Command not found.\n", ecmd->argv[0]);
+    }
+    break;
+```
+
+
+其次就是重定向命令的实现了，需要做的是关闭重定向的文件描述符，用open打开重定向文件：
+
+```c
+case '>':
+case '<':
+    rcmd = (struct redircmd*)cmd;
+    //fprintf(stderr, "redir not implemented\n");
+    close(rcmd->fd);    //close stdin or stdout
+    if(open(rcmd->file, rcmd->mode, 0777) < 0) {       //open file with fd 0(stdin) or 1(stdout)
+        fprintf(stderr, "open %s failed!\n", rcmd->file);
+        exit(0);
+    }
+    runcmd(rcmd->cmd);
+    break;
+```
+
+接着就是管道的实现了，管道的实现需要创建管道、创建2个子进程等：
+
+```c
+case '|':    //管道
+    pcmd = (struct pipecmd*)cmd;
+    //fprintf(stderr, "pipe not implemented\n");
+    if(pipe(p) < 0){
+        fprintf(stderr, "create pipe failed!\n");
+        exit(0);
+    }
+    if(fork1() == 0){          //left cmd close  stdout to redirect to pipe's input
+        close(1);
+        dup(p[1]);
+        close(p[0]);
+        close(p[1]);
+        runcmd(pcmd->left);
+    }
+    if(fork1() == 0){           //right cmd close stdin to redirect to pipie's output
+         close(0);
+         dup(p[0]);
+         close(p[0]);
+         close(p[1]);
+         runcmd(pcmd->right);
+    }
+    close(p[0]);
+    close(p[1]);
+    wait(&r);
+    wait(&r);
+    break;
+```
+
+最后运行的结果是：
+
+```c
+alvin@AlvinUbuntu:~$ cd 6.828/lab/shell/
+alvin@AlvinUbuntu:~/6.828/lab/shell$ ./a.out 
+6.828$ a.out < t.sh
+      7       7      47
+      7       7      47
+```
+
+这样就完成了HW的基础作业。
+
+**Challenge exercises**在加深理解后再补做。
+
+
+## 参考资料：
+
+1. [ Mit6.828 HW2 Shell](http://46aae4d1e2371e4aa769798941cef698.devproxy.yunshipei.com/bysui/article/details/51435476)
+2. [MIT 6.828 JOS课程1：HW Shell](https://jiyou.github.io/blog/2016/10/05/mit.6.828/MIT-6-828-JOS%E8%AF%BE%E7%A8%8B1%EF%BC%9AHW-Shell/)
+3. [cmd 重定向](http://blog.csdn.net/jifengszf/article/details/5956517)
+
+
+
+
+
+
+
+
+

@@ -189,7 +189,7 @@ test_backtrace(int x)
 f0100040: 55                    push   %ebp                    =========>开始地址
 f0100041: 89 e5                 mov    %esp,%ebp
 f0100043: 53                    push   %ebx
-f0100044: 83 ec 14              sub    $0x14,%esp
+f0100044: 83 ec 14              sub    $0x14,%esp               (5)===>esp : 0xf010ffc0     ebp：0xf010ffd8  
 f0100047: 8b 5d 08              mov    0x8(%ebp),%ebx
   cprintf("entering test_backtrace %d\n", x);
 f010004a: 89 5c 24 04           mov    %ebx,0x4(%esp)
@@ -222,6 +222,34 @@ f010009b: 5d                    pop    %ebp
 f010009c: c3                    ret    
 ```
 
+而init()函数如下：
+
+```c
+
+void
+i386_init(void)
+{
+  extern char edata[], end[];
+
+  // Before doing anything else, complete the ELF loading process.
+  // Clear the uninitialized global data (BSS) section of our program.
+  // This ensures that all static/global variables start out zero.
+  memset(edata, 0, end - edata);
+
+  // Initialize the console.
+  // Can't call cprintf until after we do this!
+  cons_init();
+
+  cprintf("6828 decimal is %o octal!\n", 6828);
+
+  // Test the stack backtrace function (lab 1 only)
+  test_backtrace(5);
+
+  // Drop into the kernel monitor.
+  while (1)
+    monitor(NULL);
+}
+```
 
 backtrace函数应该展示以下框架的信息：
 
@@ -241,13 +269,71 @@ args：前5个arguments，在函数被调用之前被push到栈。
 
 第一行表示的就是正在执行的函数，也就是mon_backtrace本身，第二行反映的是调用mon_backtrace的函数，第三行表示的是调用上一行函数的函数，以此类推。你需要打印出所有的栈信息。通过学习kern/entry.S你会发现又一个容易的方法来分辨何时停止。
 
+该递归函数的esp和ebp如下：
+```c
+test_backtrace(5)  esp: 0xf010ffc0    ebp：0xf010ffd8 
+test_backtrace(4)  esp：0xf010ffa0    ebp：0xf010ffb8  
+test_backtrace(3)  esp：0xf010ff80    ebp：0xf010ff98
+test_backtrace(2)  esp：0xf010ff60    ebp：0xf010ff78  
+test_backtrace(1)  esp：0xf010ff40    ebp：0xf010ff58 
+test_backtrace(0)  esp：0xf010ff20    ebp：0xf010ff38
+```
 
 >练习11:实现上面的backtrace函数。用和考试一样的格式，不然会与成绩脚本冲突。运行```make grade```看看是否和成绩脚本一致，如果不的话要对其进行修改。
-
 
 此时，你的backtrace函数应该在栈上给你函数调用的地址，这个栈导致了mon_backtrace()的执行。然而你往往会想知道对应的那些地址的函数名。例如你想知道哪个函数会包含可以使内核死机的bug。
 
 为了帮助你实现这个功能，我们提供函数debuginfo_eip()，查看eip的符号表并返回那些地址的调试信息。这个函数在kern/kdebug.c定义了。
+
+
+这里需要实现下面的函数：
+
+```c
+int
+mon_backtrace(int argc, char **argv, struct Trapframe *tf)
+{
+  // Your code here.
+  uint32_t* ebp = (uint32_t*) read_ebp();
+  cprintf("Stack backtrace:\n");
+  while (ebp) {
+    cprintf("ebp %x  eip %x  args", ebp, ebp[1]);
+    int i;
+    for (i = 2; i <= 6; ++i)
+      cprintf(" %08.x", ebp[i]);
+    cprintf("\n");
+    ebp = (uint32_t*) *ebp;
+  }
+  return 0;
+}
+```
+
+这样重新make && make qemu 后得到：
+
+```c
+entering test_backtrace 5
+entering test_backtrace 4
+entering test_backtrace 3
+entering test_backtrace 2
+entering test_backtrace 1
+entering test_backtrace 0
+Stack backtrace:
+ebp f010ff18  eip f0100087  args 00000000 00000000 00000000 00000000 f010094c
+ebp f010ff38  eip f0100069  args 00000000 00000001 f010ff78 00000000 f010094c
+ebp f010ff58  eip f0100069  args 00000001 00000002 f010ff98 00000000 f010094c
+ebp f010ff78  eip f0100069  args 00000002 00000003 f010ffb8 00000000 f010094c
+ebp f010ff98  eip f0100069  args 00000003 00000004 00000000 00000000 00000000
+ebp f010ffb8  eip f0100069  args 00000004 00000005 00000000 00010094 00010094
+ebp f010ffd8  eip f01000ea  args 00000005 00001aac 00000644 00000000 00000000
+ebp f010fff8  eip f010003e  args 00111021 00000000 00000000 00000000 00000000
+leaving test_backtrace 0
+leaving test_backtrace 1
+leaving test_backtrace 2
+leaving test_backtrace 3
+leaving test_backtrace 4
+leaving test_backtrace 5
+Welcome to the JOS kernel monitor!
+Type 'help' for a list of commands.
+```
 
 
 
@@ -257,7 +343,15 @@ args：前5个arguments，在函数被调用之前被push到栈。
 
 
 
+做到这里发现不懂的地方真的太多，目前也还没有好的方法去解决，接下来也许应该消化一段时间，不然一直囫囵吞枣是不行的。
 
+
+
+
+参考资料
+
+1. [Clann24的JOS](https://github.com/Clann24/jos/tree/master/lab1)
+2. [MIT 6.828 JOS学习笔记10. Lab 1 Part 3: The kernel](MIT 6.828 JOS学习笔记10. Lab 1 Part 3: The kernel)
 
 
 

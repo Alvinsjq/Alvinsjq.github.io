@@ -348,6 +348,41 @@ Type 'help' for a list of commands.
 
 
 
+
+
+#### 最后附上一些地址和备注：
+
+
+```c
+0xffffffff|4GB
+----------|32-bit memory mapped devices
+0xf0110000|bootstacktop %esp
+0xf0100d75|vprintfmt
+0xf0100d4d|printfmt
+0xf010092e|cprintf                      ==> 内核代码
+0xf01008fb|vcprintf
+0xf010079f|mon_backtrace
+0xf010009d|i386_init
+0xf0100040|test_backtrace
+0xf010000c|entry kernel
+0x00100000|**开始加载内核**
+----------|
+0x000F0000|BIOS ROM
+----------|16-bit expansion ROMs
+0x000C0000|
+0x000A0000|VGA Display
+----------|
+0x00007d63|**准备将控制权交给内核**
+0x00007d0d|进入C:bootmain
+0x00007c45|调用bootmain                 ==> Low Memory  这里是boot loader引导程序
+0x00007c2d|处理器切换为32-bit模式
+0x00007c00|boot开始的位置
+----------|
+0x00000000|0
+```
+
+
+
 参考资料
 
 1. [Clann24的JOS](https://github.com/Clann24/jos/tree/master/lab1)

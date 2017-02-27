@@ -11,7 +11,7 @@ date:   2017-02-23 14:40:22 +0800
 
 ## 机器学习数学知识fill in gap材料
 
-### CMU  10-601 Machine Learning Homework 1
+##### CMU  10-601 Machine Learning Homework 1
 
 1. 线性代数短视频和讲义
 
@@ -20,7 +20,7 @@ date:   2017-02-23 14:40:22 +0800
 3. Background Test
 
 
-### Stanford CS229 
+##### Stanford CS229 
 
 1. Review of Probability Theory
 

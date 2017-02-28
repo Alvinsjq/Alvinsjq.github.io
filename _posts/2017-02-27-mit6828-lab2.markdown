@@ -9,8 +9,6 @@ date:   2017-02-27 14:40:22 +0800
 ---
 
 
-## MIT6.828 Lab 2 : Memory Management
-
 - Part 1: Physical Page Management
 - Part 2: Virtual Memory
 - Part 3: Kernel Address Space
@@ -60,5 +58,136 @@ page_free()
 >check_page_free_list() and check_page_alloc() test your physical page allocator. You should boot JOS and see whether check_page_alloc() reports success. Fix your code so that it passes. You may find it helpful to add your own assert()s to verify that your assumptions are correct.
 
 
+这个练习是要完成以上列出的几个函数，根据kern/pmap.c中的注释，可以一步一步了解到其中每个函数的功能和实现的细节。
+
+操作系统要在UTOP上面设置虚拟地址的内存映射，在关于[Page tables]()的博文中也提到需要建立两层的页表。而函数mem_init()就是主要做这个工作。阅读代码发现，首先需要知道机器有多少内存，这可以通过函数通过i386_detect_memory()得到。紧接着就是要创建初始表（initial page），这就要实现boot_alloc()。
+
+**boot_alloc()**
+
+boot_alloc()并不是真正的physical memory allocator，它仅仅是当JOS设置它的虚拟内存系统的时候才来分配，真正的分配器函数是page_alloc()。
+
+在注释中，也说的很清楚，如果n>0，那么就分配足够装下n个字节的页出来；如果n==0，那么就返回下一个空闲页的地址，而不进行分配；这个函数只会在初始化时，在page_free_list建立好之前利用。这里的n就是该函数的参数。
+
+因此在该函数就需要考虑n不为0对时候，维护好参数nextfree，这里ROUNDUP就是寻找离nextfree+n最近的且地址高于nextfree的可以整除PGSIZE的地址，更新nextfree，然后返回结果就可以了:
+
+```c
+static void *
+boot_alloc(uint32_t n)
+{
+    static char *nextfree;  // virtual address of next byte of free memory
+    char *result;
+    if (!nextfree) {
+        extern char end[];
+        nextfree = ROUNDUP((char *) end, PGSIZE);
+    }
+    // Allocate a chunk large enough to hold 'n' bytes, then update
+    // nextfree.  Make sure nextfree is kept aligned
+    // to a multiple of PGSIZE.
+    //
+    // LAB 2: Your code here.
+    if(n>0){
+        nextfree = ROUNDUP(nextfree+n, PGSIZE);
+        return result;
+    }else
+        return nextfree;
+}
+```
+
+然后在mem_init()中，就要为系统分配npages存储在页中，作用就是内核利用它来追踪物理页，对于每一个物理页，都有一个对应的结构PageInfo。这里的npages指的就是内存中的物理页的数量。
+
+```c
+    // Your code goes here:
+    pages = (struct PageInfo *) boot_alloc(sizeof(struct PageInfo) * npages);
+
+    cprintf("npages: %d\n", npages);
+    cprintf("npages_basemem: %d\n", npages_basemem);
+    cprintf("pages: %x\n", pages);
+```
+
+
+那么在mem_init()函数中怎样追踪物理页呢？就要用到下面的一些函数。每个物理页都会有一个Pageinfo结构。
+
+**page_init()**
+一旦这个函数完成，自然就不会再用到boot_alloc了。在外面分配好初始内核的数据结构后，我们就要设置物理页的list。一旦这个做好，之后所有的内存管理都将通过page_*函数。我们现在就可以用boot_map_region或者page_insert来映射内存。
+
+该函数的功能有：
+
+- 初始化pages数组 
+- 初始化pages_free_list链表
+
+整个函数是由一个for循环构成，它会遍历所有内存页所对应的在npages数组中的PageInfo结构体，并且根据这个页当前的状态来修改这个结构体的状态。
+如果页已被占用，那么要把PageInfo结构体中的pp_ref属性置1；
+如果是空闲页，则要把这个页送入pages_free_list链表中；
+根据注释中的提示，第0页已被占用，io hole部分已被占用，还有extended memory区域的一部分也已经被占用
+
+
+```c
+    void
+page_init(void)
+{
+    size_t i;
+    page_free_list = NULL;
+
+    //num_extmem_alloc：在extmem区域已经被占用的页的个数
+    int num_extmem_alloc = ((uint32_t) boot_alloc(0) - KERNBASE) / PGSIZE;
+    //num_iohole：在io hole区域占用的页数
+    int num_iohole = (EXTPHYSMEM - IOPHYSMEM) / PAGESIZE;
+
+    for(i=0; i<npages; i++)
+    {
+        if(i == 0)
+        {
+            pages[i].pp_ref = 1;
+            pages[i].pp_link = NULL;
+            continue;
+        }    
+        else if(i >= npages_basemem && i < npages_basemem + num_iohole + num_alloc)
+        {
+            pages[i].pp_ref = 1;
+            pages[i].pp_link = NULL;
+            continue;
+        }
+        else
+        {
+            pages[i].pp_ref = 0;
+            pages[i].pp_link = page_free_list;
+            page_free_list = &pages[i];
+        }
+    }
+}
+```
+
+然后就利用check_page_free_list来检测page_free_list是否合理。这个检查完后，将进入下一个检查函数check_page_alloc()，这个函数的功能是检查分配器函数中page_alloc()，page_free()两个子函数是否能够正确运行。所以我们首先要实现这两个子函数。
+
+这两个代码的实现就是：
+
+```c
+// 分配一个物理页
+struct PageInfo *
+page_alloc(int alloc_flags)
+{
+    if (page_free_list) {
+        struct PageInfo *ret = page_free_list;
+        page_free_list = page_free_list->pp_link;
+        if (alloc_flags & ALLOC_ZERO) 
+            memset(page2kva(ret), 0, PGSIZE);
+        return ret;
+    }
+    return NULL;
+}
+
+//
+// 返回给free list一个页
+// (This function should only be called when pp->pp_ref reaches 0.)
+//
+void
+page_free(struct PageInfo *pp)
+{
+    pp->pp_link = page_free_list;
+    page_free_list = pp;
+}
+```
+
+这样就完成了第一部分的实验。
 
 

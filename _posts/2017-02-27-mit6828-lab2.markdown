@@ -520,5 +520,7 @@ A bit over 4MB.  There are page tables and page dir.  From lecture, we have 1024
 #### 参考资料
 
 [1]. https://github.com/Clann24/jos/tree/master/lab2/code
+
 [2]. http://www.cnblogs.com/fatsheep9146/p/5124921.html
+
 [3]. http://www.cnblogs.com/fatsheep9146/p/5324692.html

@@ -203,14 +203,14 @@ page_free(struct PageInfo *pp)
 
 
 
-           Selector  +--------------+         +-----------+
-          ---------->|              |         |           |
-                     | Segmentation |         |  Paging   |
-Software             |              |-------->|           |---------->  RAM
-            Offset   |  Mechanism   |         | Mechanism |
-          ---------->|              |         |           |
-                     +--------------+         +-----------+
-            Virtual                   Linear                Physical
+            Selector  +--------------+         +-----------+
+           ---------->|              |         |           |
+                      | Segmentation |         |  Paging   |
+ Software             |              |-------->|           |---------->  RAM
+             Offset   |  Mechanism   |         | Mechanism |
+           ---------->|              |         |           |
+                      +--------------+         +-----------+
+             Virtual                   Linear                Physical
 
 
 在boot／boot.S中，我们安装了一个全局描述表(GDT)，是的段地址转换失效，并且将段基址设置为0，并限制到0xffffffff。因此，selector就没有用了，所以其虚拟地址的offset就是它的linear address。

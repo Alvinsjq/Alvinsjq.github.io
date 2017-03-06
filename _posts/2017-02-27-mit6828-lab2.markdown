@@ -60,7 +60,7 @@ page_free()
 
 这个练习是要完成以上列出的几个函数，根据kern/pmap.c中的注释，可以一步一步了解到其中每个函数的功能和实现的细节。
 
-操作系统要在UTOP上面设置虚拟地址的内存映射，在关于[Page tables]()的博文中也提到需要建立两层的页表。而函数mem_init()就是主要做这个工作。阅读代码发现，首先需要知道机器有多少内存，这可以通过函数通过i386_detect_memory()得到。紧接着就是要创建初始表（initial page），这就要实现boot_alloc()。
+操作系统要在UTOP上面设置虚拟地址的内存映射，在关于[Page tables](https://alvinsjq.github.io/2017/process-overview/)的博文中也提到需要建立两层的页表。而函数mem_init()就是主要做这个工作。阅读代码发现，首先需要知道机器有多少内存，这可以通过函数通过i386_detect_memory()得到。紧接着就是要创建初始表（initial page），这就要实现boot_alloc()。
 
 **boot_alloc()**
 
@@ -191,3 +191,334 @@ page_free(struct PageInfo *pp)
 这样就完成了第一部分的实验。
 
 
+
+
+#### 第二部分：虚拟内存
+
+>练习2:阅读80386 Programmer's Reference Manual的对应章节。
+
+这里主要是讲了Page translation和Page-Level Protection，大部分内容和[Page tables](https://alvinsjq.github.io/2017/process-overview/)相似，可以看一下。
+
+在x86上，一个虚拟地址是由一个segment selector 和一个offset组成的。一个linear address 是介于segmentation机制和paging机制之间的地址，也就是在虚拟地址转换之后的一种地址，再被paging转换一次就可以映射到物理地址了。而物理地址就是最终的硬件上的地址。
+
+
+
+           Selector  +--------------+         +-----------+
+          ---------->|              |         |           |
+                     | Segmentation |         |  Paging   |
+Software             |              |-------->|           |---------->  RAM
+            Offset   |  Mechanism   |         | Mechanism |
+          ---------->|              |         |           |
+                     +--------------+         +-----------+
+            Virtual                   Linear                Physical
+
+
+在boot／boot.S中，我们安装了一个全局描述表(GDT)，是的段地址转换失效，并且将段基址设置为0，并限制到0xffffffff。因此，selector就没有用了，所以其虚拟地址的offset就是它的linear address。
+
+在实验1的第三部分，我们设置了一个简单的页表使得内核可以在它的链接地址0xf0100000运行，尽管它实际上就是加载在ROM BIOS之上的物理地址0x00100000之上。这个页表仅仅映射了4MB的地址，在这次实验中，要将其扩展到256MB的地理内存（从虚拟地址0xf0000000开始）。
+
+>练习3:While GDB can only access QEMU's memory by virtual address, it's often useful to be able to inspect physical memory while setting up virtual memory. Review the QEMU monitor commands from the lab tools guide, especially the xp command, which lets you inspect physical memory. To access the QEMU monitor, press Ctrl-a c in the terminal (the same binding returns to the serial console).
+>Use the xp command in the QEMU monitor and the x command in GDB to inspect memory at corresponding physical and virtual addresses and make sure you see the same data.
+>Our patched version of QEMU provides an info pg command that may also prove useful: it shows a compact but detailed representation of the current page tables, including all mapped memory ranges, permissions, and flags. Stock QEMU also provides an info mem command that shows an overview of which ranges of virtual memory are mapped and with what permissions.
+
+
+从代码在CPU上执行，一旦我们进入到保护模式，就不能直接使用linear address或物理地址了。所有内存都由MMU被视为虚拟地址，也就是说在C中的指针其实都是虚拟地址。
+
+
+在JOS中，例如物理内存分配器，会使用到地址类型，这里有一个总结：
+
+|C type  |Address type|
+|---|---|
+|T*     | Virtual|
+|uintptr_t  | Virtual|
+|physaddr_t    | Physical|
+
+
+
+JOS有时需要读取或者修改内存，且想要通过物理地址的方式。然而，内核和其他软件一样，不能跳过虚拟地址转换，因此不能够直接加载和存储到物理地址中去。为了能转换一个物理地址到一个内核能读写虚拟地址，内核必须在物理地址上加上0xf0000000来找到对应的虚拟地址，可以使用KADDR(pa)完成。
+
+相反，JOS有时也需要从一个虚拟地址得到一个物理地址，那么就需要减去0xf0000000，可以用PADDR(va)来完成操作。
+
+
+>练习4:In the file kern/pmap.c, you must implement code for the following functions.
+
+```
+        pgdir_walk()
+        boot_map_region()
+        page_lookup()
+        page_remove()
+        page_insert()
+```
+
+>check_page(), called from mem_init(), tests your page table management routines. You should make sure it reports success before proceeding.
+
+
+接下来就是一步一步去实现这些函数，
+
+
+1.  pgdir_walk()
+
+给定一个‘pgdir’，这是一个指向一个page directory的指针，pgdir_walk函数返回线性地址所对应的page table entry指针，这需要通过两层页表结构。
+
+相关的页表page可能不存在，如果它是true，并且create==false，那么返回NULL。
+否则，函数用page_alloc分配一个新的page table page：
+    如果分配失败了，函数返回NULL；
+    否则，新的page reference就会自增，然后该page被清理并且函数返回一个指向新页表的指针。
+
+```c
+// Hint 1: you can turn a Page * into the physical address of the
+// page it refers to with page2pa() from kern/pmap.h.
+//
+// Hint 2: the x86 MMU checks permission bits in both the page directory
+// and the page table, so it's safe to leave permissions in the page
+// more permissive than strictly necessary.
+//
+// Hint 3: look at inc/mmu.h for useful macros that mainipulate page
+// table and page directory entries.
+//
+pte_t *
+pgdir_walk(pde_t *pgdir, const void *va, int create)
+{
+    int dindex = PDX(va), tindex = PTX(va);
+    //dir index, table index
+    if (!(pgdir[dindex] & PTE_P)) { //if pde not exist
+        if (create) {
+            struct PageInfo *pg = page_alloc(ALLOC_ZERO);   //alloc a zero page
+            if (!pg) return NULL;   //allocation fails
+            pg->pp_ref++;
+            pgdir[dindex] = page2pa(pg) | PTE_P | PTE_U | PTE_W;
+        } else return NULL;
+    }
+    pte_t *p = KADDR(PTE_ADDR(pgdir[dindex]));
+    return p+tindex;
+}
+```
+
+2.boot_map_region()
+
+在页表根pgdir上，将虚拟地址[va, va+size)映射到[pa, pa+size)。大小是两倍的PGSIZE。
+并且PTE_P允许。
+这个函数仅是设置在UTOP之上的‘静态’映射，因此，它不会改变在mapped pages上的pp_ref区域。
+
+```c
+// Hint: the TA solution uses pgdir_walk
+static void
+boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
+{
+    int i;
+    cprintf("Virtual Address %x mapped to Physical Address %x\n", va, pa);
+    for (i = 0; i < size/PGSIZE; ++i, va += PGSIZE, pa += PGSIZE) {
+        pte_t *pte = pgdir_walk(pgdir, (void *) va, 1); //create
+        if (!pte) panic("boot_map_region panic, out of memory");
+        *pte = pa | perm | PTE_P;
+    }
+    cprintf("Virtual Address %x mapped to Physical Address %x\n", va, pa);
+}
+
+```
+
+
+3. page_lookup()
+    
+返回映射在虚拟地址‘va’上的page。
+如果pte_store不为0，那就将该页pte的地址存在那。它可以被page_remove使用，并且能被用来验证对系统调用参数的page permission并且大多是的调用者不能使用。
+
+```c
+// Return NULL if there is no page mapped at va.
+//
+// Hint: the TA solution uses pgdir_walk and pa2page.
+//
+struct PageInfo *
+page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
+{
+    pte_t *pte = pgdir_walk(pgdir, va, 0);  //not create
+    if (!pte || !(*pte & PTE_P)) return NULL;   //page not found
+    if (pte_store)
+        *pte_store = pte;   //found and set
+    return pa2page(PTE_ADDR(*pte));     
+}
+```
+
+4. page_remove()
+
+解除在虚拟地址‘va’上的物理页的映射。如果在该地址没有物理页，那就不做什么。
+
+
+```c
+// Hint: The TA solution is implemented using page_lookup,
+//  tlb_invalidate, and page_decref.
+//
+void
+page_remove(pde_t *pgdir, void *va)
+{
+    pte_t *pte;
+    struct PageInfo *pg = page_lookup(pgdir, va, &pte);
+    if (!pg || !(*pte & PTE_P)) return; //page not exist
+//   - The ref count on the physical page should decrement.
+//   - The physical page should be freed if the refcount reaches 0.
+    page_decref(pg);
+//   - The pg table entry corresponding to 'va' should be set to 0.
+    *pte = 0;
+//   - The TLB must be invalidated if you remove an entry from
+//     the page table.
+    tlb_invalidate(pgdir, va);
+}
+```
+
+
+5. page_insert()
+
+将物理页‘pp’映射到虚拟地址‘va’。
+
+需要：
+如果已经有一个page映射到了‘va’，把要用page_remove()；
+如果按照要求需要的，那么也表就应该被分配并且被插入到‘pgdir’；
+如果插入成功，那么pp->pp_ref就需要自增；
+如果一个page之前就在‘va’，那么TLB就得失效。
+
+
+```c
+// The permissions (the low 12 bits) of the page table entry
+// should be set to 'perm|PTE_P'.
+// Corner-case hint: Make sure to consider what happens when the same
+// pp is re-inserted at the same virtual address in the same pgdir.
+// However, try not to distinguish this case in your code, as this
+// frequently leads to subtle bugs; there's an elegant way to handle
+// everything in one code path.
+//
+// RETURNS:
+//   0 on success
+//   -E_NO_MEM, if page table couldn't be allocated
+//
+// Hint: The TA solution is implemented using pgdir_walk, page_remove,
+// and page2pa.
+//
+int
+page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
+{
+    pte_t *pte = pgdir_walk(pgdir, va, 1);  //create on demand
+    if (!pte)   //page table not allocated
+        return -E_NO_MEM;   
+    //increase ref count to avoid the corner case that pp is freed before it is inserted.
+    pp->pp_ref++;   
+    if (*pte & PTE_P)   //page colides, tle is invalidated in page_remove
+        page_remove(pgdir, va);
+    *pte = page2pa(pp) | perm | PTE_P;
+    return 0;
+}
+```
+
+
+#### 第三部分：内核地址空间
+
+
+JOS把32位线性地址虚拟空间划分成两个部分。其中用户环境（进程运行环境）通常占据低地址的那部分，叫用户地址空间。而操作系统内核总是占据高地址的部分，叫内核地址空间。这两个部分的分界线是定义在memlayout.h文件中的一个宏 ULIM。JOS为内核保留了接近256MB的虚拟地址空间。这就可以理解了，为什么在实验1中要给操作系统设计一个高地址的地址空间。如果不这样做，用户环境的地址空间就不够了。
+
+**许可和错误隔离**
+
+由于内核和用户进程只能访问各自的地址空间，所以我们必须在x86页表中使用访问权限位(Permission Bits)来使用户进程的代码只能访问用户地址空间，而不是内核地址空间。否则用户代码中的一些错误可能会覆写内核中的数据，最终导致内核的崩溃。
+
+处在用户地址空间中的代码不能访问高于ULIM的地址空间，但是内核可以读写这部分空间。而内核和用户对于地址范围[UTOP, ULIM]有着相同的访问权限，那就是可以读取但是不可以写入。这一个部分的地址空间通常被用于把一些只读的内核数据结构暴露给用户地址空间的代码。在UTOP之下的地址范围是给用户进程使用的，用户进程可以访问，修改这部分地址空间的内容。
+
+**初始化内核地址空间**
+
+现在我们要设置一下UTOP之上的地址空间：这也是整个虚拟地址空间中的内核地址空间部分。inc/memlayout.h文件中已经向你展示了这部分地址空间的布局。你可以使用你刚刚编写的函数来设置这些地址的布局。
+
+>练习5:Fill in the missing code in mem_init() after the call to check_page().
+Your code should now pass the check_kern_pgdir() and check_page_installed_pgdir() checks.
+
+UPAGES:
+首先我们要映射的范围是把pages数组映射到线性地址UPAGES，大小为一个PTSIZE。
+
+```c
+    boot_map_region(kern_pgdir, 
+        UPAGES, 
+        PTSIZE, 
+        PADDR(pages), 
+        PTE_U);
+```
+
+BOOTSTACK:
+然后映射内核的堆栈区域，把由bootstack变量所标记的物理地址范围映射给内核的堆栈。内核堆栈的虚拟地址范围是[KSTACKTOP-PTSIZE, KSTACKTOP)，不过要把这个范围划分成两部分：
+
+　　　　* [KSTACKTOP-KSTKSIZE, KSTACKTOP) 这部分映射关系加入的页表中。
+
+　　　　* [KSTACKTOP-PTSIZE, KSTACKTOP-KSTKSIZE) 这部分不进行映射。
+
+对这部分地址的访问权限是，kernel space 可以读写，user space 无权访问
+
+```c
+    boot_map_region(kern_pgdir, 
+        KSTACKTOP-KSTKSIZE, 
+        KSTKSIZE, 
+        PADDR(bootstack), 
+        PTE_W);
+```
+
+KERNBASE：
+最后映射整个操作系统内核，虚拟地址范围是[KERNBASE, 2^32]，物理地址范围是[0，2^32 - KERNBASE]。
+访问权限是，kernel space 可以读写，user space 无权访问：
+
+```c
+    boot_map_region(kern_pgdir, 
+        KERNBASE, 
+        -KERNBASE, 
+        0, 
+        PTE_W);
+```
+
+
+
+**问题**：
+
+2. 到目前为止页目录表中已经包含多少有效页目录项？他们都映射到哪里？
+
+|Entry |Base |Virtual Address Points to (logically)|
+|---|---|---|
+|1023| 0xffc00000 |Page table for top 4MB of phys mem|
+|1022 |0xff800000 |.|
+|.| . |.|
+|960 |KERNBASE (0xf0000000) |Page table for low 4MB of phys mem|
+|959 |VPT (0xefc00000) |Page directory (kernel-only, R/W)|
+|958 |ULIM (0xef800000) |Page table mapping kernel stack|
+|957 |UVPT (0xef400000) |Page directory (kernel/user, R-O)|
+|956 |UPAGES (0xef000000)| Page table mapping "pages" array|
+|955 |UTOP,UENVS (0xeec00000)| Page table mapping "envs" array|
+|954| .| Nothing mapped|
+|.| .| .|
+|2 |0x00800000 |.|
+|1| 0x00400000 |.|
+|0| 0x00000000 |Nothing mapped|
+
+
+3. 我们把kernel和user environment放在一个相同的地址空间中。为什么用户程序不能读写内核的内存空间？用什么机制保护内核的地址范围。
+
+通过ULIM和UTOP，虚拟内存被分成段。(ULIM, 4GB) 的地址仅是内核的，而(UTOP, ULIM]是内核与用户都能读取的空间，而[0x0, UTOP] 是用户的空间。这些内存空间是由permission位保护的，例如设置在页表或页表目录中的flags：PTE_W (writeable) and PTE_U (user)。
+具体的保护机制就是CPL（Current Privilege Level ），这是%cs的最低2位：
+CPL=0，OS特权
+CPL=3，user特权
+这可以用来检测当前的模式，以及此时是否可以对虚拟内存地址进行读写。
+
+
+4. 这个操作系统的可以支持的最大数量的物理内存是多大？为什么？
+
+从文件kern/pmap.h可以知道该操作系统能够支持的最大物理内存是256M。这是因为我们想将所有线性地址映射到所有物理地址。这样做就可以很容易将物理地址转换为虚拟地址。
+
+5. 如果现在的物理内存页达到最大个数，那么管理这些内存所需要的额外空间开销有多少？　　
+
+A bit over 4MB.  There are page tables and page dir.  From lecture, we have 1024 page tables, and 1 page dir.  Therefore the total space overhead = 4KB * 1024 + 4KB.
+
+页表和页表目录，1024个页表和1个页表目录，则又总空间=4KB * 1024 + 4KB。也就是4M多一点点。
+
+6. 回顾entry.S文件中，当分页机制开启时，寄存器EIP的值仍旧是一个小的值。在哪个位置代码才开始运行在高于KERNBASE的虚拟地址空间中的？当程序位于开启分页之后到运行在KERNBASE之上这之间的时候，EIP的值是小的值，怎么保证可以把这个值转换为真实物理地址的？
+
+在entry.S文件中有一个指令 jmp *%eax，这个指令要完成跳转，就会重新设置EIP的值，把它设置为寄存器eax中的值，而这个值是大于KERNBASE的，所以就完成了EIP从小的值到大于KERNBASE的值的转换。
+
+在entry_pgdir这个页表中，也把虚拟地址空间[0, 4MB)映射到物理地址空间[0, 4MB)上，所以当访问位于[0, 4MB)之间的虚拟地址时，可以把它们转换为物理地址。
+
+
+#### 参考资料
+
+[1]. https://github.com/Clann24/jos/tree/master/lab2/code
+[2]. http://www.cnblogs.com/fatsheep9146/p/5124921.html
+[3]. http://www.cnblogs.com/fatsheep9146/p/5324692.html

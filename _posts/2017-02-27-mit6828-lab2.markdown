@@ -1,9 +1,9 @@
 ---
 layout: post
-title:  "MIT6.828 Lab 2 : Memory Management"
-tags: [MIT6.828,OS,Memory Management]
+title:  "MIT6.828 Lab 2 : User Environments"
+tags: [MIT6.828,OS,User Environments]
 comments: true
-description: "关于操作系统的内存管理..."
+description: "关于操作系统的用户级进程..."
 keywords: ""
 date:   2017-02-27 14:40:22 +0800
 ---
@@ -202,7 +202,6 @@ page_free(struct PageInfo *pp)
 在x86上，一个虚拟地址是由一个segment selector 和一个offset组成的。一个linear address 是介于segmentation机制和paging机制之间的地址，也就是在虚拟地址转换之后的一种地址，再被paging转换一次就可以映射到物理地址了。而物理地址就是最终的硬件上的地址。
 
 
-
             Selector  +--------------+         +-----------+
            ---------->|              |         |           |
                       | Segmentation |         |  Paging   |
@@ -213,9 +212,9 @@ page_free(struct PageInfo *pp)
              Virtual                   Linear                Physical
 
 
-在boot／boot.S中，我们安装了一个全局描述表(GDT)，是的段地址转换失效，并且将段基址设置为0，并限制到0xffffffff。因此，selector就没有用了，所以其虚拟地址的offset就是它的linear address。
+在boot／boot.S中，我们安装了一个全局描述表(GDT)，使得段地址转换失效，并且将段基址设置为0，并限制到0xffffffff。因此，selector就没有用了，所以其虚拟地址的offset就是它的linear address。
 
-在实验1的第三部分，我们设置了一个简单的页表使得内核可以在它的链接地址0xf0100000运行，尽管它实际上就是加载在ROM BIOS之上的物理地址0x00100000之上。这个页表仅仅映射了4MB的地址，在这次实验中，要将其扩展到256MB的地理内存（从虚拟地址0xf0000000开始）。
+在实验1的第三部分，我们设置了一个简单的页表使得内核可以在它的链接地址0xf0100000运行，尽管它实际上就是加载在ROM BIOS之上的物理地址0x00100000之上。这个页表仅仅映射了4MB的地址，在这次实验中，要将其扩展到256MB的物理内存（从虚拟地址0xf0000000开始）。
 
 >练习3:While GDB can only access QEMU's memory by virtual address, it's often useful to be able to inspect physical memory while setting up virtual memory. Review the QEMU monitor commands from the lab tools guide, especially the xp command, which lets you inspect physical memory. To access the QEMU monitor, press Ctrl-a c in the terminal (the same binding returns to the serial console).
 >Use the xp command in the QEMU monitor and the x command in GDB to inspect memory at corresponding physical and virtual addresses and make sure you see the same data.
@@ -262,8 +261,8 @@ JOS有时需要读取或者修改内存，且想要通过物理地址的方式�
 
 相关的页表page可能不存在，如果它是true，并且create==false，那么返回NULL。
 否则，函数用page_alloc分配一个新的page table page：
-    如果分配失败了，函数返回NULL；
-    否则，新的page reference就会自增，然后该page被清理并且函数返回一个指向新页表的指针。
+如果分配失败了，函数返回NULL；
+否则，新的page reference就会自增，然后该page被清理并且函数返回一个指向新页表的指针。
 
 ```c
 // Hint 1: you can turn a Page * into the physical address of the
@@ -321,7 +320,7 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 3. page_lookup()
     
 返回映射在虚拟地址‘va’上的page。
-如果pte_store不为0，那就将该页pte的地址存在那。它可以被page_remove使用，并且能被用来验证对系统调用参数的page permission并且大多是的调用者不能使用。
+如果pte_store不为0，那就将该页pte的地址存在那。它可以被page_remove使用，并且能被用来验证对系统调用参数的page permission并且大多使得调用者不能使用。
 
 ```c
 // Return NULL if there is no page mapped at va.
@@ -343,7 +342,6 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 
 解除在虚拟地址‘va’上的物理页的映射。如果在该地址没有物理页，那就不做什么。
 
-
 ```c
 // Hint: The TA solution is implemented using page_lookup,
 //  tlb_invalidate, and page_decref.
@@ -364,7 +362,6 @@ page_remove(pde_t *pgdir, void *va)
     tlb_invalidate(pgdir, va);
 }
 ```
-
 
 5. page_insert()
 
@@ -410,7 +407,6 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 
 
 #### 第三部分：内核地址空间
-
 
 JOS把32位线性地址虚拟空间划分成两个部分。其中用户环境（进程运行环境）通常占据低地址的那部分，叫用户地址空间。而操作系统内核总是占据高地址的部分，叫内核地址空间。这两个部分的分界线是定义在memlayout.h文件中的一个宏 ULIM。JOS为内核保留了接近256MB的虚拟地址空间。这就可以理解了，为什么在实验1中要给操作系统设计一个高地址的地址空间。如果不这样做，用户环境的地址空间就不够了。
 
@@ -502,13 +498,11 @@ CPL=3，user特权
 
 4. 这个操作系统的可以支持的最大数量的物理内存是多大？为什么？
 
-从文件kern/pmap.h可以知道该操作系统能够支持的最大物理内存是256M。这是因为我们想将所有线性地址映射到所有物理地址。这样做就可以很容易将物理地址转换为虚拟地址。
+从文件kern/pmap.h可以知道该操作系统能够支持的最大物理内存是256M。由于这个操作系统利用一个大小为4MB的空间UPAGES来存放所有的页的PageInfo结构体信息，每个结构体的大小为8B，所以一共可以存放512K个PageInfo结构体，所以一共可以出现512K个物理页，每个物理页大小为4KB，自然总的物理内存占2GB。
 
 5. 如果现在的物理内存页达到最大个数，那么管理这些内存所需要的额外空间开销有多少？　　
 
-A bit over 4MB.  There are page tables and page dir.  From lecture, we have 1024 page tables, and 1 page dir.  Therefore the total space overhead = 4KB * 1024 + 4KB.
-
-页表和页表目录，1024个页表和1个页表目录，则又总空间=4KB * 1024 + 4KB。也就是4M多一点点。
+若我们有2GB的物理内存，我们需要4M用来存放所有的pageInfo来管理内存，2MB为了Page table Table和4KB的页表目录，总共就是6MB+4KB。
 
 6. 回顾entry.S文件中，当分页机制开启时，寄存器EIP的值仍旧是一个小的值。在哪个位置代码才开始运行在高于KERNBASE的虚拟地址空间中的？当程序位于开启分页之后到运行在KERNBASE之上这之间的时候，EIP的值是小的值，怎么保证可以把这个值转换为真实物理地址的？
 

@@ -1,0 +1,392 @@
+---
+layout: post
+title:  "MIT6.828 Lab 2 :User Environments"
+tags: [MIT6.828,OS,]]
+comments: true
+description: "关于操作系统的用户环境或用户进程。"
+keywords: "os"
+date:   2017-03-08 14:40:22 +0800
+---
+
+
+## 引入
+
+在这个实验中，我们将实现操作系统的一些基本功能，来实现用户环境下的进程的正常运行。你将会加强JOS内核的功能，为它增添一些重要的数据结构，用来记录用户进程环境的一些信息；创建一个单一的用户环境，并且加载一个程序运行它。你也可以让JOS内核能够完成用户环境所作出的任何系统调用，以及处理用户环境产生的各种异常。
+
+
+Lab 3 会包含一些列新的源文件，它们是:
+
+|文件名|备注|
+|---|---|
+|inc/env.h  |   用户模式环境下的公共定义|
+|trap.h         |     trap handling的公共定义
+|syscall.h  | 从用户环境到内核环境的系统调用的公共定义
+|lib.h        |   用户模式环境下支持库的公共定义
+|kern/env.h  | 用户模式下，内核的私有定义
+|env.c |  实现用户环境的内核代码
+|trap.h | 用户私有的trap handling定义
+|trap.c  |Trap handling 代码
+|trapentry.S| 汇编语言trap handler入口
+|syscall.h  |系统调用handling的内核私有定义
+|syscall.c  | 系统调用实现代码
+|lib/Makefrag  |  建立用户模式库obj/lib/libjos.a的Makefile框架
+|entry.S |用户模式的汇编语言入口
+|libmain.c  | 用户模式库设置从entry.S调用的代码
+|syscall.c   |用户模式系统调用stub功能
+|console.c  | 用户模式putchar and getchar的实现,提供控制台I/O
+|exit.c  |用户模式实现exit
+|panic.c| 用户模式实现panic
+|user/ *  | 各种检查lab3的函数和文件
+
+
+## 第一部分：用户环境和异常处理
+
+新包含的文件inc/env.h里面包含了JOS内核的有关用户环境(User Environment)的一些基本定义。内核使用数据结构 ```Env``` 来记录每一个用户环境的信息。在这个实验中，我们只会创建一个用户环境，但是之后我们会把它设计成能够支持多用户环境，即多个用户程序并发执行。
+
+
+在 kern/env.c 文件中我们看到，操作系统一共维护了三个重要的和用户环境相关的全局变量：
+
+```
+struct Env *envs = NULL;    //所有的 Env 结构体
+struct Env *curenv = NULL;   //目前正在运行的用户环境
+static struct Env *env_free_list;  //还没有被使用的 Env 结构体链表
+```
+
+一旦JOS启动，envs指针便指向了一个Env结构体链表，表示系统中所有的用户环境的env。在我们的设计中，JOS内核将支持同一时刻最多 NENV 个活跃的用户环境，尽管这个数字要比真实情况下任意给定时刻的活跃用户环境数要多很多。系统会为每一个活跃的用户环境在envs链表中维护一个 Env 结构体。
+
+JOS内核也把所有不活跃的Env结构体，用env_free_list链接起来。这种设计方式非常方便进行用户环境env的分配和回收。
+
+内核也会把 ```curenv ```指针指向在任意时刻正在执行的用户环境的 Env 结构体。在内核启动时，并且还没有任何用户环境运行时，curenv的值为NULL。
+
+
+#### Environment State
+
+Env结构被定义在inc/env.h 中（更多的细节会在之后的实验中添加进来），
+
+```c
+struct Env {
+    struct Trapframe env_tf;    // Saved registers
+    struct Env *env_link;       // Next free Env
+    envid_t env_id;         // Unique environment identifier
+    envid_t env_parent_id;      // env_id of this env's parent
+    enum EnvType env_type;      // Indicates special system environments
+    unsigned env_status;        // Status of the environment
+    uint32_t env_runs;      // Number of times environment has run
+
+    // Address space
+    pde_t *env_pgdir;       // Kernel virtual address of page dir
+};
+```
+
+下面解释一下：
+
+**env_tf:**
+这个结构定义在inc/trap.h中,它当环境不在运行的时候会为用户环境保存的寄存器的值：例如当内核或者另一个环境在运行时。当从用户模式切换到内核模式到时候，内核会保存它们以便环境之后重新在它离开的地方继续运行。 
+
+**env_link:**
+这是在env_free_list上的连接到下一个Env的链接，env_free_list在链表上指向第一个空闲的用户环境。
+
+**env_id:**
+内核在这利用Env结构来存储一个值，该值是唯一标志性当前环境的（例如利用在envs数组中的一个特殊的位置）。在一个用户环境终止之后，内核会重新分配相同的Env结构到不同的环境 - 但是新环境会有一个与之前不同的env_id，哪怕是新环境用的是数组中的同一个位置。
+
+
+**env_parent_id:**
+内核在这存储创造该环境的环境（父环境）的env_id，这样环境就能形成一个“family tree”，那么针对决定运行哪个环境对谁做什么就能够提供安全的决策了。
+
+**env_type:**
+这用来分清特殊的环境。对于大多数环境是ENV_TYPE_USER。在之后的实验中会对特殊的系统服务环境提供更多的一些类型。
+
+**env_status:**
+该变量值会是一下几种：
+    **ENV_FREE:**
+    表示Env结构还未活跃，因此在env_free_list上。
+    **ENV_RUNNABLE:**
+    表示Env机构代表等环境是等待处理器来运行。
+    **ENV_RUNNING:**
+    表示Env结构代表当前正在运行的环境。
+    **ENV_NOT_RUNNABLE:**
+    表示Env结构代表一个当前活跃的环境，但是当前并不准备运行：例如它在等待一个来自另一个环境的进程间通信（IPC）。
+    **ENV_DYING:**
+    表示Env结构代表一个僵尸环境。也就是下一次该环境进入内核时才会被释放。
+
+**env_pgdir:**
+该变量维护这环境的页目录的内核虚拟地址。
+
+和一个UNIX进程一样，JOS环境也会将线程和地址空间的概念联系起来。线程主要时被定义为保存的寄存器（env_tf）,而地址空间是由页目录和env_pgdir所指向的页表而定义的。运行一个环境，内核必须以保存的寄存器和适当的地址空间来设置CPU。
+
+我们的struct Env与xv8中的struct proc类似。它们都在一个Trapframe结构中维护一个环境的（例如进程的）用户模式寄存器。在JOS中，单独的环境不会有它自己的内核栈，就像xv6中的进程一样。在内核中，只能有一个JOS环境处于活跃，因此JOS只需要一个内核栈。
+
+#### 分配环境数组
+
+在实验2中，已经在mem_init()中为数组pages[]分配了内核，该数组是内核用来跟踪页空闲与否的一张表。你需要进一步修改mem_init()，来分配一个相似的Env结构数组，叫做envs。
+
+>Modify mem_init() in kern/pmap.c to allocate and map the envs array. This array consists of exactly NENV instances of the Env structure allocated much like how you allocated the pages array. Also like the pages array, the memory backing envs should also be mapped user read-only at UENVS (defined in inc/memlayout.h) so user processes can read from this array.
+You should run your code and make sure check_kern_pgdir() succeeds.
+
+```c
+// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
+    // LAB 3: Your code here.
+    envs = (struct Env *) boot_alloc(sizeof(struct Env) * NENV);
+```
+
+```c
+// Map the 'envs' array read-only by the user at linear address UENVS
+    // (ie. perm = PTE_U | PTE_P).
+    // Permissions:
+    //    - the new image at UENVS  -- kernel R, user R
+    //    - envs itself -- kernel RW, user NONE
+    // LAB 3: Your code here.
+    boot_map_region(kern_pgdir,
+        UENVS,
+        PTSIZE,
+        PADDR(envs),
+        PTE_U);
+```
+
+#### 创建和运行环境
+
+你需要在kern/env.c中编写运行一个用户环境的必要的代码。因为我们目前并没有一个文件系统，所以只能设置内核去加载一个静态的二进制文件，嵌入在内核之中。JOS将一个ELF可执行镜像嵌入到内核中。
+
+在i386_init() 中，你会在环境中看到其中一个运行这些二进制镜像的代码。不过设置用户环境的重要的函数并不完善，需要去填补它们。 
+
+> In the file env.c, finish coding the following functions:
+
+```
+env_init()
+Initialize all of the Env structures in the envs array and add them to the env_free_list. Also calls env_init_percpu, which configures the segmentation hardware with separate segments for privilege level 0 (kernel) and privilege level 3 (user).
+
+env_setup_vm()
+Allocate a page directory for a new environment and initialize the kernel portion of the new environment's address space.
+
+region_alloc()
+Allocates and maps physical memory for an environment
+
+load_icode()
+You will need to parse an ELF binary image, much like the boot loader already does, and load its contents into the user address space of a new environment.
+
+env_create()
+Allocate an environment with env_alloc and call load_icode to load an ELF binary into it.
+
+env_run()
+Start a given environment running in user mode.
+
+As you write these functions, you might find the new cprintf verb %e useful -- it prints a description corresponding to an error code. For example,
+
+    r = -E_NO_MEM;
+    panic("env_alloc: %e", r);
+will panic with the message "env_alloc: out of memory".
+```
+
+
+**env_init()**
+初始化在数组envs的所有的Env结构，并将它们添加到env_free_list中。调用env_init_percpu，该函数根据分开的段为特权等级0（内核）和3（用户）配置段硬件。
+
+code：
+
+```c
+void
+env_init(void)
+{
+    // Set up envs array
+    // LAB 3: Your code here.
+    int i;
+    for (i = NENV-1;i >= 0; --i) {
+        envs[i].env_id = 0;
+        envs[i].env_link = env_free_list;
+        env_free_list = envs+i;
+    }
+    // Per-CPU part of the initialization
+    env_init_percpu();
+}
+```
+
+**env_setup_vm()**
+为一个新环境分配一个页目录，并且初始化这个新环境的地址空间的内核部分。根据源码备注，该函数就是为环境e初始化内核虚拟地址布局。分配一个页目录，相应地设置e->env_pgdir。
+
+```c
+static int
+env_setup_vm(struct Env *e)
+{
+    int i;
+    struct PageInfo *p = NULL;
+    // Allocate a page for the page directory
+    if (!(p = page_alloc(ALLOC_ZERO)))
+        return -E_NO_MEM;
+    // Now, set e->env_pgdir and initialize the page directory.
+    // LAB 3: Your code here.
+    p->pp_ref++;
+    e->env_pgdir = (pde_t *) page2kva(p);
+    memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
+
+    // UVPT maps the env's own page table read-only.
+    // Permissions: kernel R, user R
+    e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
+
+    return 0;
+}
+```
+
+**region_alloc()**
+为环境env分配物理内存，并且在环境的地址空间上映射它的虚拟内存va。
+
+```c
+static void
+region_alloc(struct Env *e, void *va, size_t len)
+{
+    // LAB 3: Your code here.
+    void *begin = ROUNDDOWN(va, PGSIZE), *end = ROUNDUP(va+len, PGSIZE);
+    for (; begin < end; begin += PGSIZE) {
+        struct PageInfo *pg = page_alloc(0);
+        if (!pg) panic("region_alloc failed!");
+        page_insert(e->env_pgdir, pg, begin, PTE_W | PTE_U);
+    }
+    // (But only if you need it for load_icode.)
+    //
+    // Hint: It is easier to use region_alloc if the caller can pass
+    //   'va' and 'len' values that are not page-aligned.
+    //   You should round va down, and round (va + len) up.
+    //   (Watch out for corner-cases!)
+}
+```
+
+
+**load_icode()**
+需要在语法上分析一个ELF二进制镜像，就和bootloader类似，并且将它的内容加载到一个新环境的用户地址空间。在ELF头文件上的具体的地址上加载每个程序段到虚拟内存。
+
+```c
+static void
+load_icode(struct Env *e, uint8_t *binary, size_t size)
+{
+    // Hints:
+    //  Load each program segment into virtual memory
+    //  at the address specified in the ELF section header.
+    //
+    //  All page protection bits should be user read/write for now.
+    //  ELF segments are not necessarily page-aligned, but you can
+    //  assume for this function that no two segments will touch
+    //  the same virtual page.
+    //
+    //  You may find a function like region_alloc useful.
+    //
+    //  Loading the segments is much simpler if you can move data
+    //  directly into the virtual addresses stored in the ELF binary.
+    //  So which page directory should be in force during
+    //  this function?
+    //
+    //  You must also do something with the program's entry point,
+    //  to make sure that the environment starts executing there.
+    //  What?  (See env_run() and env_pop_tf() below.)
+
+    // LAB 3: Your code here.
+    struct Elf *ELFHDR = (struct Elf *) binary;
+    struct Proghdr *ph, *eph;
+
+    if (ELFHDR->e_magic != ELF_MAGIC)
+        panic("Not executable!");
+    
+    ph = (struct Proghdr *) ((uint8_t *) ELFHDR + ELFHDR->e_phoff);
+    eph = ph + ELFHDR->e_phnum;
+    //  You should only load segments with ph->p_type == ELF_PROG_LOAD.
+    //  Each segment's virtual address can be found in ph->p_va
+    //  and its size in memory can be found in ph->p_memsz.
+    //  The ph->p_filesz bytes from the ELF binary, starting at
+    //  'binary + ph->p_offset', should be copied to virtual address
+    //  ph->p_va.  Any remaining memory bytes should be cleared to zero.
+    //  (The ELF header should have ph->p_filesz <= ph->p_memsz.)
+    //  Use functions from the previous lab to allocate and map pages.
+    lcr3(PADDR(e->env_pgdir));
+    //it's silly to use kern_pgdir here.
+    for (; ph < eph; ph++)
+        if (ph->p_type == ELF_PROG_LOAD) {
+            region_alloc(e, (void *)ph->p_va, ph->p_memsz);
+            memset((void *)ph->p_va, 0, ph->p_memsz);
+            memcpy((void *)ph->p_va, binary+ph->p_offset, ph->p_filesz);
+            //but I'm curious about how exactly p_memsz and p_filesz differs
+            cprintf("p_memsz: %x, p_filesz: %x\n", ph->p_memsz, ph->p_filesz);
+        }
+    //we can use this because kern_pgdir is a subset of e->env_pgdir
+    lcr3(PADDR(kern_pgdir));
+    // Now map one page for the program's initial stack
+    // at virtual address USTACKTOP - PGSIZE.
+    // LAB 3: Your code here.
+    e->env_tf.tf_eip = ELFHDR->e_entry;
+    region_alloc(e, (void *) (USTACKTOP - PGSIZE), PGSIZE);
+}
+```
+
+**env_create()**
+利用env_alloc分配一个环境并且调用load_icode来加载ELF二进制文件到它。并且设置它的env_type。这个函数只在内核初始化的时候调用，也就是在第一个用户模式环境运行之前，新的env的父ID设置为0。
+
+```c
+void
+env_create(uint8_t *binary, size_t size, enum EnvType type)
+{
+    // LAB 3: Your code here.
+    struct Env *penv;
+    env_alloc(&penv, 0);
+    load_icode(penv, binary, size);
+}
+```
+
+**env_run()**
+上下文从当前env切换到env e。注意，如果这是env_run第一次调用，那么curenv是NULL。该函数没有返回。
+
+第一步：如果这是一个上下文切换（一个新的环境正在运行）：
+
+1. 将当前环境设置回ENV_RUNNABLE，如果它是ENV_RUNNING（考虑一下其他可能的状态）；
+2. 设置‘curenv‘为新环境；
+3. 将它的状态设置为ENV_RUNNING；
+4. 更新它的env_runs计数器；
+5. 用lcr3()将其切换到它的地址空间。
+
+第二步：用env_pop_tf()存储环境的寄存器并且在该环境下将其置入用户模式。
+
+提示：这个函数从e->env_tf加载新环境的状态，确保之前写的这个值是可得的。
+
+```c
+void
+env_run(struct Env *e)
+{
+    // LAB 3: Your code here.
+    // cprintf("curenv: %x, e: %x\n", curenv, e);
+    cprintf("\n");
+    if (curenv != e) {
+        // if (curenv->env_status == ENV_RUNNING)
+        //  curenv->env_status = ENV_RUNNABLE;
+        curenv = e;
+        e->env_status = ENV_RUNNING;
+        e->env_runs++;
+        lcr3(PADDR(e->env_pgdir));
+    }
+    env_pop_tf(&e->env_tf);
+}
+```
+
+
+
+
+接下来是用户代码运行的代码调用图，确保弄清每一步的目的：
+
+```
+* start (kern/entry.S)
+* i386_init (kern/init.c)
+    - cons_init
+    - mem_init
+    - env_init
+    - trap_init (still incomplete at this point)
+    - env_create
+    - env_run
+        ~ env_pop_tf
+```
+
+
+
+
+
+
+
+
+
+
+
+

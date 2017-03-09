@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "MIT6.828 Lab 2 :User Environments"
+title:  "MIT6.828 Lab 3 :User Environments"
 tags: [MIT6.828,OS,]
 comments: true
 description: "关于操作系统的用户环境或用户进程。"

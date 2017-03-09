@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "MIT6.828 Lab 2 : User Environments"
+title:  "MIT6.828 Lab 2 : Memory Management"
 tags: [MIT6.828,OS,User Environments]
 comments: true
 description: "关于操作系统的用户级进程..."

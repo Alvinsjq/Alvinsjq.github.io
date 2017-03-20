@@ -1,0 +1,822 @@
+---
+layout: post
+title:  "MIT6.828 Lab 3 :User Environments"
+tags: [MIT6.828,OS,]
+comments: true
+description: "关于操作系统的用户环境或用户进程。"
+keywords: "os"
+date:   2017-03-08 14:40:22 +0800
+---
+
+
+## 引入
+
+在这个实验中，我们将实现操作系统的一些基本功能，来实现用户环境下的进程的正常运行。你将会加强JOS内核的功能，为它增添一些重要的数据结构，用来记录用户进程环境的一些信息；创建一个单一的用户环境，并且加载一个程序运行它。你也可以让JOS内核能够完成用户环境所作出的任何系统调用，以及处理用户环境产生的各种异常。
+
+
+Lab 3 会包含一些列新的源文件，它们是:
+
+|文件名|备注|
+|---|---|
+|inc/env.h  |   用户模式环境下的公共定义|
+|trap.h         |     trap handling的公共定义
+|syscall.h  | 从用户环境到内核环境的系统调用的公共定义
+|lib.h        |   用户模式环境下支持库的公共定义
+|kern/env.h  | 用户模式下，内核的私有定义
+|env.c |  实现用户环境的内核代码
+|trap.h | 用户私有的trap handling定义
+|trap.c  |Trap handling 代码
+|trapentry.S| 汇编语言trap handler入口
+|syscall.h  |系统调用handling的内核私有定义
+|syscall.c  | 系统调用实现代码
+|lib/Makefrag  |  建立用户模式库obj/lib/libjos.a的Makefile框架
+|entry.S |用户模式的汇编语言入口
+|libmain.c  | 用户模式库设置从entry.S调用的代码
+|syscall.c   |用户模式系统调用stub功能
+|console.c  | 用户模式putchar and getchar的实现,提供控制台I/O
+|exit.c  |用户模式实现exit
+|panic.c| 用户模式实现panic
+|user/ *  | 各种检查lab3的函数和文件
+
+
+## 第一部分：用户环境和异常处理
+
+新包含的文件inc/env.h里面包含了JOS内核的有关用户环境(User Environment)的一些基本定义。内核使用数据结构 ```Env``` 来记录每一个用户环境的信息。在这个实验中，我们只会创建一个用户环境，但是之后我们会把它设计成能够支持多用户环境，即多个用户程序并发执行。
+
+
+在 kern/env.c 文件中我们看到，操作系统一共维护了三个重要的和用户环境相关的全局变量：
+
+```
+struct Env *envs = NULL;    //所有的 Env 结构体
+struct Env *curenv = NULL;   //目前正在运行的用户环境
+static struct Env *env_free_list;  //还没有被使用的 Env 结构体链表
+```
+
+一旦JOS启动，envs指针便指向了一个Env结构体链表，表示系统中所有的用户环境的env。在我们的设计中，JOS内核将支持同一时刻最多 NENV 个活跃的用户环境，尽管这个数字要比真实情况下任意给定时刻的活跃用户环境数要多很多。系统会为每一个活跃的用户环境在envs链表中维护一个 Env 结构体。
+
+JOS内核也把所有不活跃的Env结构体，用env_free_list链接起来。这种设计方式非常方便进行用户环境env的分配和回收。
+
+内核也会把 ```curenv ```指针指向在任意时刻正在执行的用户环境的 Env 结构体。在内核启动时，并且还没有任何用户环境运行时，curenv的值为NULL。
+
+
+#### Environment State
+
+Env结构被定义在inc/env.h 中（更多的细节会在之后的实验中添加进来），
+
+```c
+struct Env {
+    struct Trapframe env_tf;    // Saved registers
+    struct Env *env_link;       // Next free Env
+    envid_t env_id;         // Unique environment identifier
+    envid_t env_parent_id;      // env_id of this env's parent
+    enum EnvType env_type;      // Indicates special system environments
+    unsigned env_status;        // Status of the environment
+    uint32_t env_runs;      // Number of times environment has run
+
+    // Address space
+    pde_t *env_pgdir;       // Kernel virtual address of page dir
+};
+```
+
+下面解释一下：
+
+**env_tf:**
+这个结构定义在inc/trap.h中,它当环境不在运行的时候会为用户环境保存寄存器的值：例如当内核或者另一个环境在运行时。当从用户模式切换到内核模式到时候，内核会保存它们以便环境之后重新在它离开的地方继续运行。 
+
+**env_link:**
+这是在env_free_list上的连接到下一个Env的链接，env_free_list在链表上指向第一个空闲的用户环境。
+
+**env_id:**
+内核在这利用Env结构来存储一个值，该值是唯一标志性当前环境的（例如利用在envs数组中的一个特殊的位置）。在一个用户环境终止之后，内核会重新分配相同的Env结构到不同的环境 - 但是新环境会有一个与之前不同的env_id，哪怕是新环境用的是数组中的同一个位置。
+
+
+**env_parent_id:**
+内核在这存储创造该环境的环境（父环境）的env_id，这样环境就能形成一个“family tree”，那么针对决定运行哪个环境对谁做什么就能够提供安全的决策了。
+
+**env_type:**
+这用来分清特殊的环境。对于大多数环境是ENV_TYPE_USER。在之后的实验中会对特殊的系统服务环境提供更多的一些类型。
+
+**env_status:**
+该变量值会是一下几种：
+    **ENV_FREE:**
+    表示Env结构还未活跃，因此在env_free_list上。
+    **ENV_RUNNABLE:**
+    表示Env机构代表等环境是等待处理器来运行。
+    **ENV_RUNNING:**
+    表示Env结构代表当前正在运行的环境。
+    **ENV_NOT_RUNNABLE:**
+    表示Env结构代表一个当前活跃的环境，但是当前并不准备运行：例如它在等待一个来自另一个环境的进程间通信（IPC）。
+    **ENV_DYING:**
+    表示Env结构代表一个僵尸环境。也就是下一次该环境进入内核时才会被释放。
+
+**env_pgdir:**
+该变量维护这环境的页目录的内核虚拟地址。
+
+和一个UNIX进程一样，JOS环境也会将线程和地址空间的概念联系起来。线程主要时被定义为保存的寄存器（env_tf）,而地址空间是由页目录和env_pgdir所指向的页表而定义的。运行一个环境，内核必须以保存的寄存器和适当的地址空间来设置CPU。
+
+我们的struct Env与xv8中的struct proc类似。它们都在一个Trapframe结构中维护一个环境的（例如进程的）用户模式寄存器。在JOS中，单独的环境不会有它自己的内核栈，就像xv6中的进程一样。在内核中，只能有一个JOS环境处于活跃，因此JOS只需要一个内核栈。
+
+#### 分配环境数组
+
+在实验2中，已经在mem_init()中为数组pages[]分配了内核，该数组是内核用来跟踪页空闲与否的一张表。你需要进一步修改mem_init()，来分配一个相似的Env结构数组，叫做envs。
+
+>练习1:Modify mem_init() in kern/pmap.c to allocate and map the envs array. This array consists of exactly NENV instances of the Env structure allocated much like how you allocated the pages array. Also like the pages array, the memory backing envs should also be mapped user read-only at UENVS (defined in inc/memlayout.h) so user processes can read from this array.
+You should run your code and make sure check_kern_pgdir() succeeds.
+
+```c
+// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
+    // LAB 3: Your code here.
+    envs = (struct Env *) boot_alloc(sizeof(struct Env) * NENV);
+```
+
+```c
+// Map the 'envs' array read-only by the user at linear address UENVS
+    // (ie. perm = PTE_U | PTE_P).
+    // Permissions:
+    //    - the new image at UENVS  -- kernel R, user R
+    //    - envs itself -- kernel RW, user NONE
+    // LAB 3: Your code here.
+    boot_map_region(kern_pgdir,
+        UENVS,
+        PTSIZE,
+        PADDR(envs),
+        PTE_U);
+```
+
+#### 创建和运行环境
+
+你需要在kern/env.c中编写运行一个用户环境的必要的代码。因为我们目前并没有一个文件系统，所以只能设置内核去加载一个静态的二进制文件，嵌入在内核之中。JOS将一个ELF可执行镜像嵌入到内核中。
+
+在i386_init() 中，你会在环境中看到其中一个运行这些二进制镜像的代码。不过设置用户环境的重要的函数并不完善，需要去填补它们。 
+
+> In the file env.c, finish coding the following functions:
+
+```
+env_init()
+Initialize all of the Env structures in the envs array and add them to the env_free_list. Also calls env_init_percpu, which configures the segmentation hardware with separate segments for privilege level 0 (kernel) and privilege level 3 (user).
+
+env_setup_vm()
+Allocate a page directory for a new environment and initialize the kernel portion of the new environment's address space.
+
+region_alloc()
+Allocates and maps physical memory for an environment
+
+load_icode()
+You will need to parse an ELF binary image, much like the boot loader already does, and load its contents into the user address space of a new environment.
+
+env_create()
+Allocate an environment with env_alloc and call load_icode to load an ELF binary into it.
+
+env_run()
+Start a given environment running in user mode.
+
+As you write these functions, you might find the new cprintf verb %e useful -- it prints a description corresponding to an error code. For example,
+
+    r = -E_NO_MEM;
+    panic("env_alloc: %e", r);
+will panic with the message "env_alloc: out of memory".
+```
+
+
+**env_init()**
+初始化在数组envs的所有的Env结构，并将它们添加到env_free_list中。调用env_init_percpu，该函数根据分开的段为特权等级0（内核）和3（用户）配置段硬件。
+
+code：
+
+```c
+void
+env_init(void)
+{
+    // Set up envs array
+    // LAB 3: Your code here.
+    int i;
+    for (i = NENV-1;i >= 0; --i) {
+        envs[i].env_id = 0;
+        envs[i].env_link = env_free_list;
+        env_free_list = envs+i;
+    }
+    // Per-CPU part of the initialization
+    env_init_percpu();
+}
+```
+
+**env_setup_vm()**
+为一个新环境分配一个页目录，并且初始化这个新环境的地址空间的内核部分。根据源码备注，该函数就是为环境e初始化内核虚拟地址布局。分配一个页目录，相应地设置e->env_pgdir。
+
+```c
+static int
+env_setup_vm(struct Env *e)
+{
+    int i;
+    struct PageInfo *p = NULL;
+    // Allocate a page for the page directory
+    if (!(p = page_alloc(ALLOC_ZERO)))
+        return -E_NO_MEM;
+    // Now, set e->env_pgdir and initialize the page directory.
+    // LAB 3: Your code here.
+    p->pp_ref++;
+    e->env_pgdir = (pde_t *) page2kva(p);
+    memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
+
+    // UVPT maps the env's own page table read-only.
+    // Permissions: kernel R, user R
+    e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
+
+    return 0;
+}
+```
+
+**region_alloc()**
+为环境env分配物理内存，并且在环境的地址空间上映射它的虚拟内存va。
+
+```c
+static void
+region_alloc(struct Env *e, void *va, size_t len)
+{
+    // LAB 3: Your code here.
+    void *begin = ROUNDDOWN(va, PGSIZE), *end = ROUNDUP(va+len, PGSIZE);
+    for (; begin < end; begin += PGSIZE) {
+        struct PageInfo *pg = page_alloc(0);
+        if (!pg) panic("region_alloc failed!");
+        page_insert(e->env_pgdir, pg, begin, PTE_W | PTE_U);
+    }
+    // (But only if you need it for load_icode.)
+    //
+    // Hint: It is easier to use region_alloc if the caller can pass
+    //   'va' and 'len' values that are not page-aligned.
+    //   You should round va down, and round (va + len) up.
+    //   (Watch out for corner-cases!)
+}
+```
+
+
+**load_icode()**
+需要在语法上分析一个ELF二进制镜像，就和bootloader类似，并且将它的内容加载到一个新环境的用户地址空间。在ELF头文件上的具体的地址上加载每个程序段到虚拟内存。
+
+```c
+static void
+load_icode(struct Env *e, uint8_t *binary, size_t size)
+{
+    // Hints:
+    //  Load each program segment into virtual memory
+    //  at the address specified in the ELF section header.
+    //
+    //  All page protection bits should be user read/write for now.
+    //  ELF segments are not necessarily page-aligned, but you can
+    //  assume for this function that no two segments will touch
+    //  the same virtual page.
+    //
+    //  You may find a function like region_alloc useful.
+    //
+    //  Loading the segments is much simpler if you can move data
+    //  directly into the virtual addresses stored in the ELF binary.
+    //  So which page directory should be in force during
+    //  this function?
+    //
+    //  You must also do something with the program's entry point,
+    //  to make sure that the environment starts executing there.
+    //  What?  (See env_run() and env_pop_tf() below.)
+
+    // LAB 3: Your code here.
+    struct Elf *ELFHDR = (struct Elf *) binary;
+    struct Proghdr *ph, *eph;
+
+    if (ELFHDR->e_magic != ELF_MAGIC)
+        panic("Not executable!");
+    
+    ph = (struct Proghdr *) ((uint8_t *) ELFHDR + ELFHDR->e_phoff);
+    eph = ph + ELFHDR->e_phnum;
+    //  You should only load segments with ph->p_type == ELF_PROG_LOAD.
+    //  Each segment's virtual address can be found in ph->p_va
+    //  and its size in memory can be found in ph->p_memsz.
+    //  The ph->p_filesz bytes from the ELF binary, starting at
+    //  'binary + ph->p_offset', should be copied to virtual address
+    //  ph->p_va.  Any remaining memory bytes should be cleared to zero.
+    //  (The ELF header should have ph->p_filesz <= ph->p_memsz.)
+    //  Use functions from the previous lab to allocate and map pages.
+    lcr3(PADDR(e->env_pgdir));
+    //it's silly to use kern_pgdir here.
+    for (; ph < eph; ph++)
+        if (ph->p_type == ELF_PROG_LOAD) {
+            region_alloc(e, (void *)ph->p_va, ph->p_memsz);
+            memset((void *)ph->p_va, 0, ph->p_memsz);
+            memcpy((void *)ph->p_va, binary+ph->p_offset, ph->p_filesz);
+            //but I'm curious about how exactly p_memsz and p_filesz differs
+            cprintf("p_memsz: %x, p_filesz: %x\n", ph->p_memsz, ph->p_filesz);
+        }
+    //we can use this because kern_pgdir is a subset of e->env_pgdir
+    lcr3(PADDR(kern_pgdir));
+    // Now map one page for the program's initial stack
+    // at virtual address USTACKTOP - PGSIZE.
+    // LAB 3: Your code here.
+    e->env_tf.tf_eip = ELFHDR->e_entry;
+    region_alloc(e, (void *) (USTACKTOP - PGSIZE), PGSIZE);
+}
+```
+
+**env_create()**
+利用env_alloc分配一个环境并且调用load_icode来加载ELF二进制文件到它。并且设置它的env_type。这个函数只在内核初始化的时候调用，也就是在第一个用户模式环境运行之前，新的env的父ID设置为0。
+
+```c
+void
+env_create(uint8_t *binary, size_t size, enum EnvType type)
+{
+    // LAB 3: Your code here.
+    struct Env *penv;
+    env_alloc(&penv, 0);
+    load_icode(penv, binary, size);
+}
+```
+
+**env_run()**
+上下文从当前env切换到env e。注意，如果这是env_run第一次调用，那么curenv是NULL。该函数没有返回。
+
+第一步：如果这是一个上下文切换（一个新的环境正在运行）：
+
+1. 将当前环境设置回ENV_RUNNABLE，如果它是ENV_RUNNING（考虑一下其他可能的状态）；
+2. 设置‘curenv‘为新环境；
+3. 将它的状态设置为ENV_RUNNING；
+4. 更新它的env_runs计数器；
+5. 用lcr3()将其切换到它的地址空间。
+
+第二步：用env_pop_tf()存储环境的寄存器并且在该环境下将其置入用户模式。
+
+提示：这个函数从e->env_tf加载新环境的状态，确保之前写的这个值是可得的。
+
+```c
+void
+env_run(struct Env *e)
+{
+    // LAB 3: Your code here.
+    // cprintf("curenv: %x, e: %x\n", curenv, e);
+    cprintf("\n");
+    if (curenv != e) {
+        // if (curenv->env_status == ENV_RUNNING)
+        //  curenv->env_status = ENV_RUNNABLE;
+        curenv = e;
+        e->env_status = ENV_RUNNING;
+        e->env_runs++;
+        lcr3(PADDR(e->env_pgdir));
+    }
+    env_pop_tf(&e->env_tf);
+}
+```
+
+
+接下来是用户代码运行的代码调用图，确保弄清每一步的目的：
+
+```
+* start (kern/entry.S)
+* i386_init (kern/init.c)
+    - cons_init
+    - mem_init
+    - env_init
+    - trap_init (still incomplete at this point)
+    - env_create
+    - env_run
+        ~ env_pop_tf
+```
+
+
+一旦你完成上述子函数的代码，并且在QEMU下编译运行，系统会进入用户空间，并且开始执行hello程序，直到它做出一个系统调用指令int。但是这个系统调用指令不能成功运行，因为到目前为止，JOS还没有设置相关硬件来实现从用户态向内核态的转换功能。当CPU发现，它没有被设置成能够处理这种系统调用中断时，它会触发一个保护异常，然后发现这个保护异常也无法处理，从而又产生一个错误异常，然后又发现仍旧无法解决问题，所以最后放弃，我们把这个叫做"triple fault"。通常来说，接下来CPU会复位，系统会重启。
+
+所以我们马上要来解决这个问题，不过解决之前我们可以使用调试器来检查一下程序要进入用户模式时做了什么。使用make qemu-gdb 并且在 env_pop_tf 处设置断点，这条指令应该是即将进入用户模式之前的最后一条指令。然后进行单步调试，处理会在执行完 iret 指令后进入用户模式。然后依旧可以看到进入用户态后执行的第一条指令了，该指令是一个cmp指令，开始于文件 lib/entry.S 中。 现在使用 b *0x... 设置一个断点在hello文件（obj/user/hello.asm）中的sys_cputs函数中的 int $0x30 指令处。这个int指令是一个系统调用，用来展示一个字符到控制台。如果你的程序运行不到这个int指令，说明有错误。
+
+
+#### Handling Interrupts and Exceptions
+
+到目前为止，当程序运行到第一个系统调用 int $0x30 时，就会进入错误的状态，因为现在系统无法从用户态切换到内核态。所以你需要实现一个基本的异常/系统调用处理机制，使得内核可以从用户态转换为内核态。你应该先熟悉一下X86的异常中断机制。
+
+>Exercise 3. Read Chapter 9, Exceptions and Interrupts in the 80386 Programmer's Manual (or Chapter 5 of the IA-32 Developer's Manual), if you haven't already.
+
+在这个实验中，我们一般会按照Intel的中断、异常的术语。然而，例如异常、陷阱、中断和中止在架构和操作系统中没有标准的意思，在一个特定的架构中例如x86你会发现也许会有微妙的差别。当在这个实验之外，意思就不太一样了。
+
+#### Basics of Protected Control Transfer
+
+异常和中断都是“受保护的控制转移”，都会使处理器从用户模式切换到内核模式（CPL=0），却不需要给用户模式下的代码一些内核的函数接口或其他的环境。在Intel的术语里，中断（an interrupt）是一个受保护的控制转移方式，通常由处理器外部的异步事件引起，例如外部I／O设备活动的通知。异常（an exception）相反，是由当前正在运行的同步的代码所造成的受保护控制转移方式，例如被0除或是一次无效的内存访问。
+
+为了确保这些受保护转移方式确实是受保护的，处理器的中端／异常机制就被设计起来，以便当中端或异常发生时正在执行的代码不能够武断地选择进入内核哪里或怎样进入内核。处理器仅允许内核在受仔细控制条件下才能被进入。在x86中，两种机制协调工作来提供这种保护：
+
+1.中断向量表（The Interrupt Descriptor Table）
+处理器保证中断和异常只能够引起程序进入到一些特定的，被内核事先定义好的入口点，而不是由触发中断的程序来决定中断程序入口点。
+
+x86允许256个不同的中断或异常进入点能够进入到内核，每个进入点都有一个不让的中断向量。一个中断向量是0-256之间的一个数字。中断向量是由中断源所决定的：不同的设备、错误条件和应用请求内核产生不同的中断向量。CPU就用这个向量值作为访问IDT（内核在内核私有内存中设置的）的索引值，与GDT很类似。从该表的对应的入口，处理器会加载：
+
+- 加载到指令指针寄存器（EIP）的值，该值指向处理该类型异常的内核代码；
+- 加载到代码段（cs）寄存器，包含了这个中断处理程序的运行特权级，即这个程序是在用户态还是内核态下运行。（jos中，所有异常都在内核模式下处理，也就是特权级为0）
+
+2.任务状态段（The Task State Segment）
+
+处理器需要在中断和异常发生之前将之前的处理器状态（例如在处理器唤起异常处理之前，原先EIP、CS的值）存储在一个地方，以便之后可以再次加载该状态数据，继续从它离开的地方执行被中断的代码。但是这段旧的处理器状态必须保护好，防止用户模式下被修改；否则就会出现问题。
+
+因此，当x86内核进行了一次中断或trap引起了从用户模式到内核模式的特权转换，它也同时切换到内核内存栈上。一个叫做 “任务状态段（TSS）”的数据结构将会详细记录这个堆栈所在的段的段描述符和地址。处理器会把SS，ESP，EFLAGS，CS，EIP以及一个可选错误码等等这些值压入到这个堆栈上。然后加载中断处理程序的CS，EIP值，并且设置ESP，SS寄存器指向新的堆栈。
+
+尽管TSS非常大，并且还有很多其他的功能，但是JOS仅仅使用它来定义处理器从用户态转向内核态所采用的内核堆栈，由于JOS中的内核态指的就是特权级0，所以处理器用TSS中的ESP0，SS0字段来指明这个内核堆栈的位置，大小。
+
+#### Types of Exceptions and Interrupts
+
+所有的由X86处理器内部产生的异常的向量值是0到31之间的整数，因此映射到IDT的入口0-31。比如，页表错所对应的向量值是14。而大于31号的中断向量对应的是软件中断，由int指令生成；或者是外部中断，由外部设备生成。
+
+在这一节，我们将扩展JOS的功能，使它能够处理0~31号内部异常。在下一节会让JOS能够处理软件中断向量48，它主要被用来做系统调用。在Lab4中会继续扩展JOS使它能够处理外部硬件中断，比如时钟中断。
+
+
+###### 一个例子
+
+让我们看一个实例，假设处理器正在用户状态下运行代码，但是遇到了一个除法指令，并且除数为0.
+
+1. 处理器会首先切换自己的堆栈，切换到由TSS的SS0，ESP0字段所指定的内核堆栈区，这两个字段分别存放着GD_KD和KSTACKTOP的值。
+
+2. 处理器把异常参数压入到内核堆栈中，起始于地址KSTACKTOP：
+
+```
+　                   +--------------------+ KSTACKTOP             
+                     | 0x00000 | old SS   |     " - 4
+                     |      old ESP       |     " - 8
+                     |     old EFLAGS     |     " - 12
+                     | 0x00000 | old CS   |     " - 16
+                     |      old EIP       |     " - 20 <---- ESP 
+                     +--------------------+                 　
+
+```
+
+3. 因为我们要处理的是除零异常，它的中断向量是0，处理器会读取IDT表中的0号表项，并且把CS:EIP的值设置为0号中断处理函数的地址值。
+
+4. 中断处理函数开始执行，并且处理中断。
+
+                               
+对于某些特定的异常，除了上面图中要保存的五个值之外，还要再压入一个字，叫做错误码。比如页表错，就是其中一个实例。当压入错误码之后，内核堆栈的状态如下：
+
+
+                     +--------------------+ KSTACKTOP             
+                     | 0x00000 | old SS   |     " - 4
+                     |      old ESP       |     " - 8
+                     |     old EFLAGS     |     " - 12
+                     | 0x00000 | old CS   |     " - 16
+                     |      old EIP       |     " - 20
+                     |     error code     |     " - 24 <---- ESP
+                     +--------------------+   
+
+
+##### Nested Exceptions and Interrupts
+
+处理器在用户态下和内核态下都可以处理异常或中断。只有当处理器从用户态切换到内核态时，才会自动地切换堆栈，并且把一些寄存器中的原来的值压入到堆栈上，并且触发相应的中断处理函数。但如果处理器已经由于正在处理中断而处在内核态下时，此时CPU只会向内核堆栈压入更多的值。通过这种方式，内核就可处理嵌套中断。
+
+如果处理器已经在内核态下并且遇到嵌套中断，因为它不需要切换堆栈，所以它不需要存储SS，ESP寄存器的值。此时内核堆栈的就像下面这个样子：
+
+                     +--------------------+ <---- old ESP
+                     |     old EFLAGS     |     " - 4
+                     | 0x00000 | old CS   |     " - 8
+                     |      old EIP       |     " - 12
+                     +--------------------+             
+
+这里有一个重要的警告。如果处理器在内核态下接受一个异常，而且由于一些原因，比如堆栈空间不足，不能把当前的状态信息（寄存器的值）压入到内核堆栈中时，那么处理器是无法恢复到原来的状态了，它会自动重启。
+
+##### Setting up the IDT
+
+你现在应该有了所有的基本信息去设置IDT表，并且在JOS处理异常。现在你只需要处理内部异常（中断向量号0~31）。
+
+在头文件 inc/trap.h和kern/trap.h 中包含了和中断异常相关的非常重要的定义，你应该好好熟悉一下。kern/trap.h 文件中包含了仅内核可见的一些定义， inc/trap.h 中包含了用户态也可见的一些定义；
+您应该实现的总体控制流程如下：
+```
+     IDT                   trapentry.S         trap.c
+   
++----------------+                        
+|   &handler1    |---------> handler1:          trap (struct Trapframe *tf)
+|                |             // do stuff      {
+|                |             call trap          // handle the exception/interrupt
+|                |             // ...           }
++----------------+
+|   &handler2    |--------> handler2:
+|                |            // do stuff
+|                |            call trap
+|                |            // ...
++----------------+
+       .
+       .
+       .
++----------------+
+|   &handlerX    |--------> handlerX:
+|                |             // do stuff
+|                |             call trap
+|                |             // ...
++----------------+
+
+每一个中断或异常都有它自己的中断处理函数，分别定义在 trapentry.S中，trap_init()将初始化IDT表。每一个处理函数都应该构建一个结构体 Trapframe 在堆栈上，并且调用trap()函数指向这个结构体，trap()然后处理异常/中断，给他分配一个中断处理函数。
+```
+
+>Exercise 4：编辑一下trapentry.S 和 trap.c 文件，并且实现上面所说的功能。宏定义 TRAPHANDLER 和 TRAPHANDLER_NOEC 会对你有帮助。你将会在 trapentry.S文件中为在inc/trap.h文件中的每一个trap加入一个入口指针，你也将会提供_alttraps的值。
+你需要修改trap_init()函数来初始化IDT表，使表中每一项指向定义在trapentry.S中的入口指针，SETGATE宏定义在这里用得上。 
+
+```
+　　　　你所实现的 _alltraps 应该：
+
+　　　　1. 把值压入堆栈使堆栈看起来像一个结构体 Trapframe
+
+　　　　2. 加载 GD_KD 的值到 %ds, %es寄存器中
+
+　　　　3. 把%esp的值压入，并且传递一个指向Trapframe的指针到trap()函数中。
+
+　　　　4. 调用trap
+
+　　考虑使用pushal指令，他会很好的和结构体 Trapframe 的布局配合好。
+/*
+ * Lab 3: Your code here for _alltraps
+ */
+_alltraps:
+    pushl %ds
+    pushl %es
+    pushal
+    pushl $GD_KD
+    popl %ds
+    pushl $GD_KD
+    popl %es
+    pushl %esp
+    call trap
+```
+
+```c
+void
+trap_init(void)
+{
+    extern struct Segdesc gdt[];
+
+    // LAB 3: Your code here.
+      void th0();
+      void th1();
+      void th3();
+      ...
+      void th13();
+      void th14();
+      void th16();
+      SETGATE(idt[0], 0, GD_KT, th0, 0);
+      SETGATE(idt[1], 0, GD_KT, th1, 0);
+      SETGATE(idt[3], 0, GD_KT, th3, 0);
+      ...
+      SETGATE(idt[16], 0, GD_KT, th16, 0);
+}
+```
+
+Questions
+
+1. What is the purpose of having an individual handler function for each exception/interrupt? (i.e., if all exceptions/interrupts were delivered to the same handler, what feature that exists in the current implementation could not be provided?)
+
+    No, we did not have to do anything to make softint behave correctly.  This is because we should NOT allow users to invoke exceptions of their choice.  If they could predict an exception being called, they could put in malicious code on the stack, which the kernel would then read out and execute with kernel privileges.  We instead trigger interrupt 13 since the user program attempted to violate its privileges.
+
+2. Did you have to do anything to make the user/softint program behave correctly? The grade script expects it to produce a general protection fault (trap 13), but softint's code says int \$14. Why should this produce interrupt vector 13? What happens if the kernel actually allows softint's int $14 instruction to invoke the kernel's page fault handler (which is interrupt vector 14)?
+
+    No, we did not have to do anything to make softint behave correctly.  This is because we should NOT allow users to invoke exceptions of their choice.  If they could predict an exception being called, they could put in malicious code on the stack, which the kernel would then read out and execute with kernel privileges.  We instead trigger interrupt 13 since the user program attempted to violate its privileges.
+
+
+
+## 第二部分：缺页中断，断点异常以及系统调用
+
+现在你的操作系统内核已经具备一定的异常处理能力了，在这部分实验中，我们将会进一步完善它，使它能够处理不同类型的中断/异常。
+
+
+#### 解决缺页中断
+
+缺页中断是一个非常重要的中断，因为我们在后续的实验中，非常依赖于能够处理缺页中断的能力。当缺页中断发生时，系统会把引起中断的线性地址存放到控制寄存器 CR2 中。在trap.c 中，已经提供了一个能够处理这种缺页异常的函数page_fault_handler()。
+
+>练习5: 修改一下 trap_dispatch 函数，使系统能够把缺页异常引导到 page_fault_handler() 上执行。在修改完成后，运行 make grade，出现的结果应该是你修改后的 JOS 可以成功运行 faultread，faultreadkernel，faultwrite，faultwritekernel 测试程序。
+
+```c
+    if (tf->tf_trapno == T_PGFLT) {
+        cprintf("PAGE FAULT\n");
+        page_fault_handler(tf);
+        return;
+    }
+```
+
+```c
+    // LAB 3: Your code here.
+    if (tf->tf_trapno == T_PGFLT) {
+        page_fault_handler(tf);
+        return;
+    }
+```
+
+
+```c
+void
+page_fault_handler(struct Trapframe *tf)
+{
+    uint32_t fault_va;
+
+    // Read processor's CR2 register to find the faulting address
+    fault_va = rcr2();
+
+    // Handle kernel-mode page faults.
+
+    // LAB 3: Your code here.
+    if ((tf->tf_cs&3) == 0)
+        panic("Kernel page fault!");
+
+    // We've already handled kernel-mode exceptions, so if we get here,
+    // the page fault happened in user mode.
+
+    // Destroy the environment that caused the fault.
+    cprintf("[%08x] user fault va %08x ip %08x\n",
+        curenv->env_id, fault_va, tf->tf_eip);
+    print_trapframe(tf);
+    env_destroy(curenv);
+}
+```
+
+之后会继续实现。
+
+
+#### 断点异常
+
+断点异常，异常号为3，这个异常可以让调试器能够给程序加上断点。加断点的基本原理就是把要加断点的语句用一个 INT3 指令替换，执行到INT3时，会触发软中断。在JOS中，我们将通过把这个异常转换成一个伪系统调用，这样的话任何用户环境都可以使用这个伪系统调用来触发JOS kernel monitor。
+
+>练习6:修改trap_dispatch()使断点异常发生时，能够触发kernel monitor。修改完成后运行 make grade，运行结果应该是你修改后的 JOS 能够正确运行 breakpoint 测试程序。
+
+```c
+    if (tf->tf_trapno == T_BRKPT) {
+        cprintf("BREAK POINT\n");
+        monitor(tf);
+        return;
+    }
+```
+
+并且需要修改  `T_BRKPT` 的`dpl` 来允许用户唤醒断点异常:
+
+```c
+for (i = 0; i <= 16; ++i)
+    if (i==T_BRKPT)
+        SETGATE(idt[i], 0, GD_KT, funs[i], 3)
+    else if (i!=2 && i!=15) {
+        SETGATE(idt[i], 0, GD_KT, funs[i], 0);
+    }
+```
+
+
+Question: 
+3. 在上面的break point exception测试程序中，如果你在设置IDT时，对break point exception采用不同的方式进行设置，可能会产生触发不同的异常，有可能是break point exception，有可能是 general protection exception。这是为什么？你应该怎么做才能得到一个我们想要的breakpoint exception，而不是general protection exception？
+
+Answer：Just set the `dpl` that enables user-invoking.
+
+
+#### 系统调用
+
+用户程序会要求内核帮助它完成系统调用。当用户程序触发系统调用，系统进入内核态。处理器和操作系统将保存该用户程序当前的上下文状态，然后由内核将执行正确的代码完成系统调用，然后回到用户程序继续执行。而用户程序到底是如何得到操作系统的注意，以及它如何说明它希望操作系统做什么事情的方法是有很多不同的实现方式的。
+
+在JOS中，我们会采用int指令，这个指令会触发一个处理器的中断。特别的，我们用int $0x30来代表系统调用中断。注意，中断0x30不是通过硬件产生的。
+
+应用程序会把系统调用号以及系统调用的参数放到寄存器中。通过这种方法，内核就不需要去查询用户程序的堆栈了。系统调用号存放到 %eax 中，参数则存放在 %edx, %ecx, %ebx, %edi, 和 %esi 中。内核会把返回值送到 %eax中。在lib/syscall.c中已经写好了触发一个系统调用的代码。　　
+
+>练习7:给中断向量T_SYSCALL编写一个中断处理函数。你需要去编辑kern/trapentry.S和kern/trap.c中的trap_init()函数。你也需要去修改trap_dispatch()函数，使他能够通过调用syscall()（在kern/syscall.c中定义的）函数处理系统调用中断。最终你需要去实现kern/syscall.c中的syscall()函数。确保这个函数会在系统调用号为非法值时返回-E_INVAL。你应该充分理解lib/syscall.c文件。我们要处理在inc/syscall.h文件中定义的所有系统调用。 
+通过make run-hello指令来运行 user/hello 程序，它应该在控制台上输出 “hello, world” 然后出发一个页中断。如果没有发生的话，代表你编写的系统调用处理函数是不正确的。
+
+kern/trapentry.S
+
+```c
+
+```
+
+
+kern/trap.c中的trap_init()
+
+```c
+
+```
+
+
+kern/trap.c中的trap_dispatch()
+
+```c
+
+```
+
+inc/syscall.c
+
+```c
+
+```
+
+do this later!
+
+#### User-mode startup
+
+用户程序真正开始运行的地方是在lib/entry.S文件中。该文件中，首先会进行一些设置，然后就会调用lib/libmain.c 文件中的 libmain() 函数。你首先要修改一下 libmain() 函数，使它能够初始化全局指针 thisenv ，让它指向当前用户环境的 Env 结构体。
+
+　　　　然后 libmain() 函数就会调用 umain，这个 umain 程序恰好是 user/hello.c 中被调用的函数。在之前的实验中我们发现，hello.c程序只会打印 "hello, world" 这句话，然后就会报出 page fault 异常，原因就是 thisenv->env_id 这条语句。现在你已经正确初始化了这个 thisenv的值，再次运行就应该不会报错了。
+
+
+>练习8:把我们刚刚提到的应该补全的代码补全，然后重新启动内核，此时你应该看到 user/hello 程序会打印 "hello, world", 然后在打印出来 "i am environment 00001000"。user/hello 然后就会尝试退出，通过调用 sys_env_destroy()。由于内核目前仅仅支持一个用户运行环境，所以它应该汇报 “已经销毁用户环境”的消息，然后退回内核监控器(kernel monitor)。
+
+
+```c
+void
+libmain(int argc, char **argv)
+{
+    // set env to point at our env structure in envs[].
+    // LAB 3: Your code here.
+    //env = 0;
+        env = &envs[ENVX(sys_getenvid())];
+
+    // save the name of the program so that panic() can use it
+    if (argc > 0)
+        binaryname = argv[0];
+
+    // call user main routine
+    umain(argc, argv);
+
+    // exit gracefully
+    exit();
+}
+```
+
+
+
+#### Page faults and memory protection
+
+内存保护是操作系统的非常重要的一项功能，它可以防止由于用户程序崩溃对操作系统带来的破坏与影响。
+
+操作系统通常依赖于硬件的支持来实现内存保护。操作系统可以让硬件能够始终知晓哪些虚拟地址是有效的，哪些是无效的。当程序尝试去访问一个无效地址，或者尝试去访问一个超出它访问权限的地址时，处理器会在这个指令处终止，并且触发异常，陷入内核态，与此同时把错误的信息报告给内核。如果这个异常是可以被修复的，那么内核会修复这个异常，然后程序继续运行。如果异常无法被修复，则程序永远不会继续运行。
+
+作为一个可修复异常的例子，让我们考虑一下可自动扩展的堆栈。在许多系统中，内核在初始情况下只会分配一个内核堆栈页，如果程序想要访问这个内核堆栈页之外的堆栈空间的话，就会触发异常，此时内核会自动再分配一些页给这个程序，程序就可以继续运行了。
+
+系统调用也为内存保护带来了问题。大部分系统调用接口让用户程序传递一个指针参数给内核。这些指针指向的是用户缓冲区。通过这种方式，系统调用在执行时就可以解引用这些指针。但是这里有两个问题：
+
+1.在内核中的page fault要比在用户程序中的page fault更严重。如果内核在操作自己的数据结构时出现 page faults，这是一个内核的bug，而且异常处理程序会中断整个内核。但是当内核在引用由用户程序传递来的指针时，它需要一种方法去记录此时出现的任何page faults都是由用户程序带来的。
+
+2.内核通常比用户程序有着更高的内存访问权限。用户程序很有可能要传递一个指针给系统调用，这个指针指向的内存区域是内核可以进行读写的，但是用户程序不能。此时内核必须小心不要去解析这个指针，否则的话内核的重要信息很有可能被泄露。
+
+现在你需要通过仔细检查所有由用户传递来指针所指向的空间来解决上述两个问题。当一个程序传递给内核一个指针时，**内核会检查这个地址是在整个地址空间的用户地址空间部分，而且页表也运行进行内存的操作。**
+
+>练习9:修改kern/trap.c文件，使其能够实现：当在内核模式下发现页错，trap.c 文件会panic。
+
+HINT：
+为了能够判断这个page fault是出现在内核模式下还是用户模式下，我们应该检查 tf_cs 的低几位。
+阅读 user_mem_assert （在 kern/pmap.c），并且实现 user_mem_check;
+修改一下 kern/syscall.c 去检查输入参数。
+启动内核后，运行 user/buggyhello 程序，用户环境可以被销毁，内核不可以panic，你应该看到：
+
+```
+　　　　　　[00001000] user_mem_check assertion failure for va 00000001
+    　　　 [00001000] free env 00001000
+           Destroyed the only environment - nothing more to do!
+```
+
+
+```c
+    if ((tf->tf_cs&3) == 0)
+        panic("Kernel page fault!");
+```
+
+user_mem_asser:
+```c
+int
+user_mem_check(struct Env *env, const void *va, size_t len, int perm)
+{
+    // LAB 3: Your code here.
+    cprintf("user_mem_check va: %x, len: %x\n", va, len);
+    uint32_t begin = (uint32_t) ROUNDDOWN(va, PGSIZE); 
+    uint32_t end = (uint32_t) ROUNDUP(va+len, PGSIZE);
+    uint32_t i;
+    for (i = (uint32_t)begin; i < end; i+=PGSIZE) {
+        pte_t *pte = pgdir_walk(env->env_pgdir, (void*)i, 0);
+        pprint(pte);
+        if ((i>=ULIM) || !pte || !(*pte & PTE_P) || ((*pte & perm) != perm)) {
+            user_mem_check_addr = (i<(uint32_t)va?(uint32_t)va:i);
+            return -E_FAULT;
+        }
+    }
+    cprintf("user_mem_check success va: %x, len: %x\n", va, len);
+    return 0;
+}
+```
+
+sys_cputs:
+```c
+static void
+sys_cputs(const char *s, size_t len)
+{
+    // Check that the user has permission to read memory [s, s+len).
+    // Destroy the environment if not.
+
+    // LAB 3: Your code here.
+    struct Env *e;
+    envid2env(sys_getenvid(), &e, 1);
+    user_mem_assert(e, s, len, PTE_U);
+    //user_mem_check(struct Env *env, const void *va, size_t len, int perm)
+
+    // Print the string supplied by the user.
+    cprintf("%.*s", len, s);
+}
+```
+
+
+>练习10:Boot your kernel, running user/evilhello. The environment should be destroyed, and the kernel should not panic. You should see:
+
+    [00000000] new env 00001000
+    ...
+    [00001000] user_mem_check assertion failure for va f010000c
+    [00001000] free env 00001000
+
+
+##参考资料：
+- http://www.cnblogs.com/fatsheep9146/p/5451579.html
+- http://www.cnblogs.com/fatsheep9146/p/5341836.html
+- https://github.com/Clann24/jos/tree/master/lab3

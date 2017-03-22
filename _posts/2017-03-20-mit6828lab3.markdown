@@ -816,7 +816,7 @@ sys_cputs(const char *s, size_t len)
     [00001000] free env 00001000
 
 
-##参考资料：
+## 参考资料：
 - http://www.cnblogs.com/fatsheep9146/p/5451579.html
 - http://www.cnblogs.com/fatsheep9146/p/5341836.html
 - https://github.com/Clann24/jos/tree/master/lab3

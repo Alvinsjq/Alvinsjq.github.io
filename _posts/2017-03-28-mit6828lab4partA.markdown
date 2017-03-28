@@ -1,0 +1,130 @@
+---
+layout: post
+title:  "抢占式多任务处理实验"
+tags: [MIT6.828,OS,process]
+comments: true
+description: "MIT操作系统6.828实验4第一部分："
+keywords: ""
+date:   2017-03-28 14:40:22 +0800
+---
+
+
+# Lab 4: Preemptive Multitasking part A ：Multiprocessor Support and Cooperative Multitasking
+
+这个实验是要实现在用户模式下多个同步活动的抢占式多任务处理。那么在A部分主要是为JOS添加支持多处理的功能，实现轮询调度（round-robin scheduling）并添加基本环境管理系统调用（创建和销毁环境、分配和映射内存）。
+
+- 拓展JOS支持在多处理器系统上运行，为JOS内核实现新的系统调用，可以使用户态环境创建新的环境
+- 实现轮询调度，运行内核可以在当前环境放弃CPU或退出时从一个环境切换到另一个环境
+
+## Multiprocessor Support
+我们需要使JOS能够支撑“symmetric multiprocessing（SMP）”，也就是说多核模式下，所有的CPU都有相同的能力可以获得系统的资源，就比如说内存、I/O。那么在SMP下所有CPU在功能上等同的情况下，在引导（boot）过程中，它们被分成两类：
+
+-  the bootstrap processor （BSP）初始化系统，启动操作系统；
+-  the application processors (APs) ，仅在系统加载完成并运行后由BSP触发。
+
+至于哪些处理器是BSP，这就由硬件和BIOS决定。所以说的，目前为止的JOS都是运行在BSP上的。
+
+在一个SMP系统下，每一个CPU都会带有一个局部的APLC（LAPIC）单元。LAPIC单元住负责在整个系统中传送中断。它也会为自己的CPU提供一个唯一的标志符，这次实验我们会用到一下几个LAPIC单元的功能（kern/lapic.c）：
+
+- 观察LAPIC标志符（APIC ID）判断我们代码此时在哪一个CPU上运行（可见cpunum()）；
+- 向APs发送来自BSP的处理器间中断STARTUP，带起其他的CPUs（可见lapic_startap()）
+- 在C部分的实验会编写LAPLIC的内建时钟，触发时钟中断以支持抢占式多处理（可见apic_init()）
+
+处理器利用内核映射的I/O（MMIO）获取它的LAPIC。在MMIO中，物理地址的一部分与一些I/O设备的寄存器式硬连接的，因此用来获取内存的load／store指令也就可以用来获取设备寄存器。在物理地址0xA0000处的I/O槽就可以向VGA显示缓冲写入。LAPIC从物理地址0xFE000000（32MB short of 4GB）开始，它的地址过高以至于我们仅用在KERNBASE的映射很难获取到它。JOS虚拟内存在MMIOBASE之上映射了一个4MB的空间，在那我们就可以映射像LAPIC这样的设备。因为接下来的实验中会有更多的MMIO的地方，因此需要写一个简单的函数来分配空间。
+
+
+>Exercise 1. Implement mmio_map_region in kern/pmap.c. To see how this is used, look at the beginning of lapic_init in kern/lapic.c. You'll have to do the next exercise, too, before the tests for mmio_map_region will run.
+
+在做这个之前，现阅读一下上面提到的kern/lapic.c文件，因为这是lapic单元的功能函数，首先是在代码中预定义了局部的寄存器Local APIC registers，根据注释得知函数lapic_init会 **将LAPIC的物理地址映射到虚拟地址上，以便我们能够获取这些地址。**那因此调用了kern/pmap.c中的函数mmio_map_region。根据函数及其注释，mmio_map_region有两个参数```physaddr_t pa```以及```size_t size```
+
+- ```lapicaddr pa```是LAPIC的4K的MMIO区的物理地址
+- ```size_t size```就是所要映射的4K大小的物理空间
+
+由于JOS虚拟内存在MMIOBASE上预留了4GB大小的空间，因此就可以将这4K大小的空间映射到那里，因此对于mmio_map_region中的base参数自然就是MMIOBASE地址。然后从base开始，将物理地址[pa,pa+size)映射到虚拟地址[base,base+size)上，由于这是设备内存而不是普通的DRAM，这就需要告诉CPU使用cache获取它的内存是不安全的。幸运的是页表提供了这个标识位可以达到这个目的（PTE_PCD|PTE_PWT cache-disable and write-through 以及 PTE_W）。
+
+```c
+// Reserve size bytes in the MMIO region and map [pa,pa+size) at this
+// location.  Return the base of the reserved region.  size does *not*
+// have to be multiple of PGSIZE.
+//
+void *
+mmio_map_region(physaddr_t pa, size_t size)
+{
+    static uintptr_t base = MMIOBASE;
+    // Be sure to round size up to a multiple of PGSIZE and to
+    // handle if this reservation would overflow MMIOLIM (it's
+    // okay to simply panic if this happens).
+    //
+    // Hint: The staff solution uses boot_map_region.
+    //
+    // Your code here:
+    size = ROUNDUP(pa+size, PGSIZE);
+    pa = ROUNDDOWN(pa, PGSIZE);
+    size -= pa;
+    if (base+size >= MMIOLIM) panic("not enough memory");
+    //Map [va, va+size) of virtual address space to physical [pa, pa+size)
+    boot_map_region(kern_pgdir, base, size, pa, PTE_PCD|PTE_PWT|PTE_W); 
+    base += size;
+    return (void*) (base - size);
+    // panic("mmio_map_region not implemented");
+}
+```
+
+
+### Application Processor Bootstrap
+
+在启动APs之前，BSP需要首先收集一些多处理器系统的信息，比如说有多少个CPU，以及它们的APLIC ID、LAPIC单元的MMIO地址是多少。在kern/mpconfig.c中的函数mp_init() 通过阅读内存BIOS区的MP配置表检索这些信息。kern/init.c中的函数boot_aps()驱动了AP启动进程，AP在实模式下启动，与bootloader在boot/boot.S启动类似，因此boot_aps()拷贝了AP的入口代码（kern/mpentry.S）给在实模式下可达的内存区域。与bootloader不同的是，我们可以控制AP将在哪里执行代码，将入口代码拷贝到0x7000（MPENTRY_PADDR），在640K以下的任何没用的对齐的物理地址都可以使用。
+之后，boot_aps函数通过发送STARTUP的IPI(处理器间中断)信号到AP的LAPIC单元来一个个地激活AP。在kern/mpentry.S中的入口代码跟boot/boot.S中的代码类似。在一些简短的配置后，它使AP进入开启分页机制的保护模式，调用C语言的setup函数mp_main。 
+
+>Exercise 2. Read boot_aps() and mp_main() in kern/init.c, and the assembly code in kern/mpentry.S. Make sure you understand the control flow transfer during the bootstrap of APs. Then modify your implementation of page_init() in kern/pmap.c to avoid adding the page at MPENTRY_PADDR to the free list, so that we can safely copy and run AP bootstrap code at that physical address. Your code should pass the updated check_page_free_list() test (but might fail the updated check_kern_pgdir() test, which we will fix soon).
+
+现阅读一下boot_aps()，该函数启动APs处理器，按照注释，首先是将入口代码写入在MPENTRY_PADDR处的未使用的内存区域。
+得到在mpentry.S中的代码；mp_main()是为APs设置好代码。
+
+
+
+```c
+void
+page_init(void)
+{
+    // LAB 4:
+    // Change your code to mark the physical page at MPENTRY_PADDR
+    // as in use
+
+    // The example code here marks all physical pages as free.
+    // However this is not truly the case.  What memory is free?
+    //  1) Mark physical page 0 as in use.
+    //     This way we preserve the real-mode IDT and BIOS structures
+    //     in case we ever need them.  (Currently we don't, but...)
+    //  2) The rest of base memory, [PGSIZE, npages_basemem * PGSIZE)
+    //     is free.
+    //  3) Then comes the IO hole [IOPHYSMEM, EXTPHYSMEM), which must
+    //     never be allocated.
+    //  4) Then extended memory [EXTPHYSMEM, ...).
+    //     Some of it is in use, some is free. Where is the kernel
+    //     in physical memory?  Which pages are already in use for
+    //     page tables and other data structures?
+    // 
+    // Change the code to reflect this.
+    // NB: DO NOT actually touch the physical memory corresponding to
+    // free pages!
+    cprintf("MPENTRY_PADDR: %x\n", MPENTRY_PADDR);
+    cprintf("npages_basemem: %x\n", npages_basemem);
+    size_t i;
+    for (i = 1; i < MPENTRY_PADDR/PGSIZE; i++) {
+        pages[i].pp_ref = 0;
+        pages[i].pp_link = page_free_list;
+        page_free_list = &pages[i];
+    }
+    // int med = (int)ROUNDUP(kern_top - 0xf0000000, PGSIZE)/PGSIZE;
+    int med = (int)ROUNDUP(((char*)envs) + (sizeof(struct Env) * NENV) - 0xf0000000, PGSIZE)/PGSIZE;
+    // med = (int) percpu_kstacks[NCPU-1];
+    cprintf("med: %x\n", med);
+    for (i = med; i < npages; i++) {
+        pages[i].pp_ref = 0;
+        pages[i].pp_link = page_free_list;
+        page_free_list = &pages[i];
+    }
+}
+```
+

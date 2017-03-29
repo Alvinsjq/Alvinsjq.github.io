@@ -1,9 +1,9 @@
 ---
 layout: post
-title:  "抢占式多任务处理实验"
+title:  "Lab 4: Preemptive Multitasking part A ：Multiprocessor Support and Cooperative Multitasking"
 tags: [MIT6.828,OS,process]
 comments: true
-description: "MIT操作系统6.828实验4第一部分："
+description: "MIT操作系统6.828实验4第一部分：Multiprocessor Support and Cooperative Multitasking"
 keywords: ""
 date:   2017-03-28 14:40:22 +0800
 ---

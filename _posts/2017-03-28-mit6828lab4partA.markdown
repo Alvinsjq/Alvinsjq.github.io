@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "Lab 4: Preemptive Multitasking part A ：Multiprocessor Support and Cooperative Multitasking"
+title:  "MIT6.828 Lab 4: Preemptive Multitasking part A ：Multiprocessor Support and Cooperative Multitasking"
 tags: [MIT6.828,OS,process]
 comments: true
 description: "MIT操作系统6.828实验4第一部分：Multiprocessor Support and Cooperative Multitasking"

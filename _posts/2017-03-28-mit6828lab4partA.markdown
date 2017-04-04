@@ -8,9 +8,6 @@ keywords: ""
 date:   2017-03-28 14:40:22 +0800
 ---
 
-
-# Lab 4: Preemptive Multitasking part A ：Multiprocessor Support and Cooperative Multitasking
-
 这个实验是要实现在用户模式下多个同步活动的抢占式多任务处理。那么在A部分主要是为JOS添加支持多处理的功能，实现轮询调度（round-robin scheduling）并添加基本环境管理系统调用（创建和销毁环境、分配和映射内存）。
 
 - 拓展JOS支持在多处理器系统上运行，为JOS内核实现新的系统调用，可以使用户态环境创建新的环境
@@ -128,3 +125,477 @@ page_init(void)
 }
 ```
 
+### Per-CPU State and Initialization
+
+在写多处理器OS时，其中重要的一点是，要区别好```对每一个处理器私有的每个CPU状态```与```这个系统共享的全局状态```。文件kern/cpu.h 定义了大部分的每个CPU状态，包括了存放每个CPU的变量```struct CpuInfo```。而```cpunum() ```总是返回调用的CPU的ID，以便用于对```cpus```做类似数组的操作。另一种选择是宏指令```thiscpu```也能简略表达```struct CpuInfo```。
+
+
+下面是需要注意的每个CPU的状态：
+
+- 每个CPU的内核栈（Per-CPU kernel stack） 
+
+由于多个CPU会同时陷入内核，因此我们需要为每个处理器维护一个分开的内核栈，来防止它们干涉其他处理器的执行。数组percpu_kstacks[NCPU][KSTKSIZE]为NCPU的内核栈保留了空间。
+
+在实验2中将BSP的内核栈的物理地址映射到KSTACKTOP以下的区域。类似得，在这次实验中，需要将CPU的每一个内核栈映射到该区域，以及作为它们之间的一个缓冲的保护页。CPU 0 的栈将会从KSTACKTOP向下增长；CPU 1的栈将会在CPU 0 之下，再间隔KSTKGAP字节向下增长，以此类推。文件inc/memlayout.h展现了这个映射图。
+
+- 每个CPU的TSS 和 TSS 描述（Per-CPU TSS and TSS descriptor）
+
+每个CPU的任务状态段（TSS）也是必须的，为了能够具体说明每个CPU的内核栈的生存。CPU i 的TSS储存在cpus[i].cpu_ts中，对应的TSS描述符定义在GDT条目gdt[(GD_TSS0 >> 3) + i]中。定义在kern/trap.c中的全局变量ts不再起作用了。
+
+- （每个CPU当前环境的指针）Per-CPU current environment pointer. 
+
+由于每一个CPU能够同时运行不同的用户进程，我们重新定义curenv对应cpus[cpunum()].cpu_env（或者thiscpu->cpu_env），它指向当前执行的CPU的环境（代码正在该CPU上运行）。
+
+
+- 每个CPU的系统寄存器（Per-CPU system registers）
+
+所有的寄存器，包括系统寄存器都对CPU是私有的。因此，初始化这些寄存器的指令，例如lcr3(), ltr(), lgdt(), lidt()等，必须在每一个CPU上执行一次。函数env_init_percpu() 和trap_init_percpu()就是为次设计的。
+
+>Exercise 3. Modify mem_init_mp() (in kern/pmap.c) to map per-CPU stacks starting at KSTACKTOP, as shown in inc/memlayout.h. The size of each stack is KSTKSIZE bytes plus KSTKGAP bytes of unmapped guard pages. Your code should pass the new check in check_kern_pgdir().
+
+```c
+// 修改在kern_pgdir的映射支持对称多处理SMP
+//   - 在区域[KSTACKTOP-PTSIZE, KSTACKTOP)映射每一个处理器的栈
+//
+static void mem_init_mp(void)
+{
+    // Map per-CPU stacks starting at KSTACKTOP, for up to 'NCPU' CPUs.
+    //
+    // For CPU i, use the physical memory that 'percpu_kstacks[i]' refers
+    // to as its kernel stack. CPU i's kernel stack grows down from virtual
+    // address kstacktop_i = KSTACKTOP - i * (KSTKSIZE + KSTKGAP), and is
+    // divided into two pieces, just like the single stack you set up in
+    // mem_init:
+    //     * [kstacktop_i - KSTKSIZE, kstacktop_i)
+    //          -- backed by physical memory
+    //     * [kstacktop_i - (KSTKSIZE + KSTKGAP), kstacktop_i - KSTKSIZE)
+    //          -- not backed; so if the kernel overflows its stack,
+    //             it will fault rather than overwrite another CPU's stack.
+    //             Known as a "guard page".
+    //     Permissions: kernel RW, user NONE
+    //
+    // LAB 4: Your code here:
+    int i;
+    for (i = 0; i < NCPU; ++i) {
+        cprintf("percpu_kstacks[%d]: %x\n", i, percpu_kstacks[i]);
+        boot_map_region(kern_pgdir, 
+            KSTACKTOP - KSTKSIZE - i * (KSTKSIZE + KSTKGAP), 
+            KSTKSIZE, 
+            PADDR(percpu_kstacks[i]), 
+            PTE_W);
+    }
+}
+```
+
+
+>Exercise 4. The code in trap_init_percpu() (kern/trap.c) initializes the TSS and TSS descriptor for the BSP. It worked in Lab 3, but is incorrect when running on other CPUs. Change the code so that it can work on all CPUs. (Note: your new code should not use the global ts variable any more.)
+
+```c
+// 初始化和加载每个CPU的 TSS 与 IDT
+void
+trap_init_percpu(void)
+{
+    // The example code here sets up the Task State Segment (TSS) and
+    // the TSS descriptor for CPU 0. But it is incorrect if we are
+    // running on other CPUs because each CPU has its own kernel stack.
+    // Fix the code so that it works for all CPUs.
+    //
+    // Hints:
+    //   - The macro "thiscpu" always refers to the current CPU's
+    //     struct CpuInfo;
+    //   - The ID of the current CPU is given by cpunum() or
+    //     thiscpu->cpu_id;
+    //   - Use "thiscpu->cpu_ts" as the TSS for the current CPU,
+    //     rather than the global "ts" variable;
+    //   - Use gdt[(GD_TSS0 >> 3) + i] for CPU i's TSS descriptor;
+    //   - You mapped the per-CPU kernel stacks in mem_init_mp()
+    //
+    // ltr sets a 'busy' flag in the TSS selector, so if you
+    // accidentally load the same TSS on more than one CPU, you'll
+    // get a triple fault.  If you set up an individual CPU's TSS
+    // wrong, you may not get a fault until you try to return from
+    // user space on that CPU.
+    //
+    // LAB 4: Your code here:
+    int cid = thiscpu->cpu_id;
+
+    // Setup a TSS so that we get the right stack
+    // when we trap to the kernel.
+    thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - cid * (KSTKSIZE + KSTKGAP);
+    thiscpu->cpu_ts.ts_ss0 = GD_KD;
+
+    // Initialize the TSS slot of the gdt.
+    gdt[(GD_TSS0 >> 3)+cid] = SEG16(STS_T32A, (uint32_t) (&(thiscpu->cpu_ts)),
+                    sizeof(struct Taskstate), 0);
+    gdt[(GD_TSS0 >> 3)+cid].sd_s = 0;
+
+    // Load the TSS selector (like other segment selectors, the
+    // bottom three bits are special; we leave them 0)
+    ltr(GD_TSS0+8*cid);
+
+    // Load the IDT
+    lidt(&idt_pd);
+}
+```
+
+当完成以上的练习，利用qemu设置CPUS=4，来运行4个CPU的JOS，会看到类似这样的结果：
+
+```
+...
+Physical memory: 66556K available, base = 640K, extended = 65532K
+check_page_alloc() succeeded!
+check_page() succeeded!
+check_kern_pgdir() succeeded!
+check_page_installed_pgdir() succeeded!
+SMP: CPU 0 found 4 CPU(s)
+enabled interrupts: 1 2
+SMP: CPU 1 starting
+SMP: CPU 2 starting
+SMP: CPU 3 starting
+```
+
+### Locking
+
+内核锁是一个单一的全局锁，当一个环境进入内核模式时就上锁，当返回用户模式时就释放锁。在这种模式下，用户模式下能够在任何可获得的CPU上进行并发运行，但不会出现有大于一个环境在内核模式下运行，任务想要进入内核模式的都必须等待。
+
+kern/spinlock.h 声明了这样的一个内核锁，叫做kernel_lock。它提供了lock_kernel() 和 unlock_kernel(). 你需要在四个地方用到内核锁：
+
+- i386_init(), 在BSP唤醒其它CPU之前需要得到锁。
+- mp_main(), 在初始化AP周后得到锁，然后调用sched_yield()开始在AP上运行环境。 
+- trap(), 当从用户模式陷入时需要获得锁。确认一个陷入发生在用户模式还是内核模式可以检查tf_cs的低位.
+- env_run(), 在切换到用户模式之前释放锁。不要太早或太晚干这事，否则会发生竞速或死锁。
+
+>Exercise 5. Apply the big kernel lock as described above, by calling lock_kernel() and unlock_kernel() at the proper locations.
+
+```c
+- i386_init()
+// Acquire the big kernel lock before waking up APs
+// Your code here:
+    lock_kernel();
+// Starting non-bo
+    boot_aps();
+
+- mp_main()
+// Now that we have finished some basic setup, call sched_yield()
+// to start running processes on this CPU.  But make sure that
+// only one CPU can enter the scheduler at a time!
+//
+// Your code here:
+    lock_kernel();
+    sched_yield();
+
+- trap()
+// Trapped from user mode.
+// Acquire the big kernel lock before doing any
+// serious kernel work.
+// LAB 4: Your code here.
+        lock_kernel();
+
+- env_run()
+    if (curenv != e) {
+        if (curenv && curenv->env_status == ENV_RUNNING)
+            curenv->env_status = ENV_RUNNABLE;
+        curenv = e;
+        e->env_status = ENV_RUNNING;
+        e->env_runs++;
+        lcr3(PADDR(e->env_pgdir));
+    }
+    unlock_kernel();
+    env_pop_tf(&e->env_tf);
+```
+
+
+### Round-Robin Scheduling
+
+接下来的任务是改变JOS内核，实现round-robin调度算法。 
+　　 主要是在sched_yield函数内实现，从该核上一次运行的进程开始，在进程描述符表中寻找下一个可以运行的进程，如果没找到而且上一个进程依然是可以运行的，那么就可以继续运行上一个进程，同时将这个算法实现为了一个系统调用，进程可以主动放弃CPU。 
+
+- 函数sched_yield负责选择一个新的运行环境。它从数组envs[]中有序查询，从之前运行的环境开始（如果之前没有运行环境的话就从数组的第一个元素开始）挑选第一个在ENV_RUNNABLE状态下的环境，然后调用env_run函数，跳到哪个环境中。
+- sched_yield不能停尸在两个CPU上运行相同的环境。
+- 我们还提供了一个新的系统调用sys_yield，用户环境下可以调用它唤醒内核的sched_yield函数，然后主动放弃CPU给不同的环境。
+
+>Exercise 6. Implement round-robin scheduling in sched_yield() as described above. Don't forget to modify syscall() to dispatch sys_yield().
+
+确保在mp_main唤起sched_yield()，修改kern/init.c创建3个或更多的环境，它们都运行user/yield.c
+
+
+```c 
+// Choose a user environment to run and run it.
+void
+sched_yield(void)
+{
+    struct Env *idle;
+
+    // Implement simple round-robin scheduling.
+    //
+    // Search through 'envs' for an ENV_RUNNABLE environment in
+    // circular fashion starting just after the env this CPU was
+    // last running.  Switch to the first such environment found.
+    //
+    // If no envs are runnable, but the environment previously
+    // running on this CPU is still ENV_RUNNING, it's okay to
+    // choose that environment.
+    //
+    // Never choose an environment that's currently running on
+    // another CPU (env_status == ENV_RUNNING). If there are
+    // no runnable environments, simply drop through to the code
+    // below to halt the cpu.
+
+    // LAB 4: Your code here.
+    struct Env *e;
+    // cprintf("curenv: %x\n", curenv);
+    int i, cur=0;
+    if (curenv) cur=ENVX(curenv->env_id);
+        else cur = 0;
+    // cprintf("cur: %x, thiscpu: %x\n", cur, thiscpu->cpu_id);
+    for (i = 0; i < NENV; ++i) {
+        int j = (cur+i) % NENV;
+        if (j < 2) cprintf("envs[%x].env_status: %x\n", j, envs[j].env_status);
+        if (envs[j].env_status == ENV_RUNNABLE) {
+            if (j == 1) 
+                cprintf("\n");
+            env_run(envs + j);
+        }
+    }
+    if (curenv && curenv->env_status == ENV_RUNNING)
+        env_run(curenv);
+
+    // sched_halt never returns
+    // cprintf("Nothing runnable\n");
+    sched_halt();
+}
+
+
+// Deschedule current environment and pick a different one to run.
+static void sys_yield(void)
+{
+    sched_yield();
+}
+```
+
+
+### System Calls for Environment Creation 
+　　虽然你的内核现在有能力运行和切换多用户级进程，但是它仍然只能跑内核初始创建的进程。你现在将实现必要的JOS系统调用来运行用户进程来创建和启动其它新的用户进程。 
+　　Unix提供了fork系统调用来创建进程，它拷贝父进程的整个地址空间到新创建的子进程。两个进程之间唯一的区别是它们的进程ID，在父进程fork返回的是子进程ID，而在子进程fork返回的是0。 
+　　你将实现一个不同的更原始的JOS系统调用来创建进程。利用这些系统调用能实现类似Unix的fork函数。 你将为JOS写的新的系统调用如下：
+
+- sys_exofork
+- sys_env_set_status
+- sys_page_alloc
+- sys_page_map
+- sys_page_unmap
+
+这里提供了一个初始的类Unix的fork函数，在测试文件user/dumbfork.c中。这个程序利用上面的系统调用来创建和运行一个带有自己地址空间副本的一个子环境。
+
+>Exercise 7. Implement the system calls described above in kern/syscall.c. You will need to use various functions in kern/pmap.c and kern/env.c, particularly envid2env(). For now, whenever you call envid2env(), pass 1 in the checkperm parameter. Be sure you check for any invalid system call arguments, returning -E_INVAL in that case. Test your JOS kernel with user/dumbfork and make sure it works before proceeding.
+
+- sys_exofork
+
+```c 
+// Allocate a new environment.
+// Returns envid of new environment, or < 0 on error.  Errors are:
+//  -E_NO_FREE_ENV if no free environment is available.
+//  -E_NO_MEM on memory exhaustion.
+static envid_t
+sys_exofork(void)
+{
+    // Create the new environment with env_alloc(), from kern/env.c.
+    // It should be left as env_alloc created it, except that
+    // status is set to ENV_NOT_RUNNABLE, and the register set is copied
+    // from the current environment -- but tweaked so sys_exofork
+    // will appear to return 0.
+
+    // LAB 4: Your code here.
+
+    struct Env *e;
+    int ret = env_alloc(&e, curenv->env_id);
+    if (ret) return ret;
+    e->env_tf = curenv->env_tf;
+    e->env_status = ENV_NOT_RUNNABLE;
+    e->env_tf.tf_regs.reg_eax = 0;
+    cprintf("e pgdir: %x\n", e, e->env_pgdir);
+
+    return e->env_id;
+    panic("sys_exofork not implemented");
+}
+```
+
+- sys_env_set_status
+```c 
+// Set envid's env_status to status, which must be ENV_RUNNABLE
+// or ENV_NOT_RUNNABLE.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//  -E_BAD_ENV if environment envid doesn't currently exist,
+//      or the caller doesn't have permission to change envid.
+//  -E_INVAL if status is not a valid status for an environment.
+static int
+sys_env_set_status(envid_t envid, int status)
+{
+    // Hint: Use the 'envid2env' function from kern/env.c to translate an
+    // envid to a struct Env.
+    // You should set envid2env's third argument to 1, which will
+    // check whether the current environment has permission to set
+    // envid's status.
+
+    // LAB 4: Your code here.
+    if (status != ENV_NOT_RUNNABLE && status != ENV_RUNNABLE) return -E_INVAL;
+    struct Env *e; 
+    int ret = envid2env(envid, &e, 1);
+    if (ret) return ret;    //bad_env
+    e->env_status = status;
+    return 0;
+    panic("sys_env_set_status not implemented");
+}
+```
+
+- sys_page_alloc
+```c 
+// Allocate a page of memory and map it at 'va' with permission
+// 'perm' in the address space of 'envid'.
+// The page's contents are set to 0.
+// If a page is already mapped at 'va', that page is unmapped as a
+// side effect.
+//
+// perm -- PTE_U | PTE_P must be set, PTE_AVAIL | PTE_W may or may not be set,
+//         but no other bits may be set.  See PTE_SYSCALL in inc/mmu.h.
+//
+// Return 0 on success, < 0 on error.  Errors are:
+//  -E_BAD_ENV if environment envid doesn't currently exist,
+//      or the caller doesn't have permission to change envid.
+//  -E_INVAL if va >= UTOP, or va is not page-aligned.
+//  -E_INVAL if perm is inappropriate (see above).
+//  -E_NO_MEM if there's no memory to allocate the new page,
+//      or to allocate any necessary page tables.
+static int
+sys_page_alloc(envid_t envid, void *va, int perm)
+{
+    // Hint: This function is a wrapper around page_alloc() and
+    //   page_insert() from kern/pmap.c.
+    //   Most of the new code you write should be to check the
+    //   parameters for correctness.
+    //   If page_insert() fails, remember to free the page you
+    //   allocated!
+    struct Env *e; 
+    int ret = envid2env(envid, &e, 1);
+    if (ret) return ret;    //bad_env
+
+    if (va >= (void*)UTOP) return -E_INVAL;
+    int flag = PTE_U|PTE_P;
+    if ((perm & flag) != flag) return -E_INVAL;
+
+    struct PageInfo *pg = page_alloc(1);//init to zero
+    if (!pg) return -E_NO_MEM;
+    pg->pp_ref++;
+    ret = page_insert(e->env_pgdir, pg, va, perm);
+    if (ret) {
+        page_free(pg);
+        return ret;
+    }
+
+    return 0;
+
+    // LAB 4: Your code here.
+    panic("sys_page_alloc not implemented");
+}
+```
+
+- sys_page_map
+```c 
+// Map the page of memory at 'srcva' in srcenvid's address space
+// at 'dstva' in dstenvid's address space with permission 'perm'.
+// Perm has the same restrictions as in sys_page_alloc, except
+// that it also must not grant write access to a read-only
+// page.
+//
+// Return 0 on success, < 0 on error.  Errors are:
+//  -E_BAD_ENV if srcenvid and/or dstenvid doesn't currently exist,
+//      or the caller doesn't have permission to change one of them.
+//  -E_INVAL if srcva >= UTOP or srcva is not page-aligned,
+//      or dstva >= UTOP or dstva is not page-aligned.
+//  -E_INVAL is srcva is not mapped in srcenvid's address space.
+//  -E_INVAL if perm is inappropriate (see sys_page_alloc).
+//  -E_INVAL if (perm & PTE_W), but srcva is read-only in srcenvid's
+//      address space.
+//  -E_NO_MEM if there's no memory to allocate any necessary page tables.
+static int
+sys_page_map(envid_t srcenvid, void *srcva,
+         envid_t dstenvid, void *dstva, int perm)
+{
+    // Hint: This function is a wrapper around page_lookup() and
+    //   page_insert() from kern/pmap.c.
+    //   Again, most of the new code you write should be to check the
+    //   parameters for correctness.
+    //   Use the third argument to page_lookup() to
+    //   check the current permissions on the page.
+
+    // LAB 4: Your code here.
+    //  -E_BAD_ENV if srcenvid and/or dstenvid doesn't currently exist,
+    //      or the caller doesn't have permission to change one of them.
+    struct Env *se, *de;
+    int ret = envid2env(srcenvid, &se, 1);
+    if (ret) return ret;    //bad_env
+    ret = envid2env(dstenvid, &de, 1);
+    if (ret) return ret;    //bad_env
+    cprintf("src env: %x, dst env: %x, src va: %x, dst va: %x\n", 
+        se->env_id, de->env_id, srcva, dstva);
+
+    //  -E_INVAL if srcva >= UTOP or srcva is not page-aligned,
+    //      or dstva >= UTOP or dstva is not page-aligned.
+    if (srcva>=(void*)UTOP || dstva>=(void*)UTOP || 
+        ROUNDDOWN(srcva,PGSIZE)!=srcva || ROUNDDOWN(dstva,PGSIZE)!=dstva) 
+        return -E_INVAL;
+
+    //  -E_INVAL is srcva is not mapped in srcenvid's address space.
+    pte_t *pte;
+    struct PageInfo *pg = page_lookup(se->env_pgdir, srcva, &pte);
+    if (!pg) return -E_INVAL;
+
+    //  -E_INVAL if perm is inappropriate (see sys_page_alloc).
+    int flag = PTE_U|PTE_P;
+    if ((perm & flag) != flag) return -E_INVAL;
+
+    //  -E_INVAL if (perm & PTE_W), but srcva is read-only in srcenvid's
+    //      address space.
+    if (((*pte&PTE_W) == 0) && (perm&PTE_W)) return -E_INVAL;
+
+    //  -E_NO_MEM if there's no memory to allocate any necessary page tables.
+
+    ret = page_insert(de->env_pgdir, pg, dstva, perm);
+    return ret;
+
+    panic("sys_page_map not implemented");
+}
+```
+
+- sys_page_unmap
+```c
+// Unmap the page of memory at 'va' in the address space of 'envid'.
+// If no page is mapped, the function silently succeeds.
+//
+// Return 0 on success, < 0 on error.  Errors are:
+//  -E_BAD_ENV if environment envid doesn't currently exist,
+//      or the caller doesn't have permission to change envid.
+//  -E_INVAL if va >= UTOP, or va is not page-aligned.
+static int
+sys_page_unmap(envid_t envid, void *va)
+{
+    // Hint: This function is a wrapper around page_remove().
+
+    // LAB 4: Your code here.
+    if (va>=(void*)UTOP || ROUNDDOWN(va,PGSIZE)!=va)
+        return -E_INVAL;
+    struct Env *e;
+    int ret = envid2env(envid, &e, 1);
+    if (ret) return ret;    //bad_env
+    page_remove(e->env_pgdir, va);
+    return 0;
+
+    panic("sys_page_unmap not implemented");
+}
+```
+
+
+## 参考资料
+- http://46aae4d1e2371e4aa769798941cef698.devproxy.yunshipei.com/bysui/article/details/51567733
+- https://github.com/Clann24/jos/tree/master/lab4/partA

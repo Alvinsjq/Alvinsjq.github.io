@@ -1,0 +1,464 @@
+---
+layout: post
+title:  "MIT6.828 Lab 4: Preemptive Multitasking Part B: Copy-on-Write Fork"
+tags: [MIT6.828,OS,process]
+comments: true
+description: "MIT操作系统6.828实验4第二部分：Copy-on-Write Fork"
+keywords: ""
+date:   2017-04-13 14:40:22 +0800
+---
+
+在之前提到过，Unix提供了fork()系统调用作为它早期主要的进程创建。fork() 系统调用复制了调用进程（父进程）的地址空间，从而创建了一个新的进程（子进程）。
+
+xv6 Unix中的fork() 实现了从父进程的页中拷贝所有的数据到新分配的子进程的页中。这个方法与dumpfork() 一样。而拷贝父进程的地址空间到子进程是整个fork() 操作开销最大的部分。
+
+然而，在子进程中调用fork()之后立即会调用exec()，以将新的程序替换掉子进程的内存。这就是shell做的典型的事情。在这种情况下，由于子进程在调用exec之前只会用到很小一部分的内存，因此花在复制父进程地址空间的时间也就大量地浪费了。 
+
+因此在后面的版本中，Unix发挥了虚拟内存硬件的优势来允许父进程与子进程可以分享映射到它们对应的地址空间的内存，知道它们修改了地址空间。这个技术就是 **copy-on-write**。这样做，在fork() 中内核就可以拷贝从父进程映射到子进程的地址空间，而不是拷贝页中的内容，与此同时，标记共享页为read-only。当它们两中的一个想要对共享页进行写操作时，进程就会发生一个页错误（page fault）。这时，Unix内核就会意识到该页是一个虚拟的页或者是一个copy-on-write的页，因此它就为这个出错的进程制作一个新的，私有的可写的副本。通过这样的方式，独立页的内容实际上也就不会真的复制，要么知道它们真的对它进行了写操作。那么在子进程中随后操作为exec的fork()调用的优化就变得简单了：在子进程调用exec之前，它可能只需要复制一个页（它的栈的当前页）。
+
+在之后的实验中，你将会实现一个合适的类Unix的带有copy-on-write的fork() 作为用户空间的库。在用户空间实现这样的fork()的好处可以让内核更加简单并且更有可能是正确的。它也能让独立的用户模式的程序能定义它们自己fork的语义。
+
+## User-level page fault handling
+
+一个用户级别的copy-on-write fork需要知道在写保护页上的页错误，这是我们首先需要实现的。Copy-on-write仅仅是我们处理用户级别的页错误的许多可能中的一种。
+
+设置一个地址空间以便表明一些需要的操作什么时候会发生。举个例子，就是许多Unix内核起初只会映射一个页在进程的栈区，等到进程栈消耗提高从而造成页错误时才映射另外的栈页。一个典型的Unix内核必须是在每一个进程空间中跟踪当一个页错误发生要采取什么行动。例如，在栈区的错误将会分配和映射新的物理内存页。在程序BSS区的错误通常会分配一个新的页并用0填满它，然后映射它。
+
+### Setting the Page Fault Handler
+
+为了处理自己的页错误，在JOS中一个用户环境需要注册一个page fault handler entrypoint。通过新的系统调用sys_env_set_pgfault_upcall来注册这样的页错误。这时需要给Env结构添加一个新的数据来记录这些信息。
+
+>Exercise 8. Implement the sys_env_set_pgfault_upcall system call. Be sure to enable permission checking when looking up the environment ID of the target environment, since this is a "dangerous" system call.
+
+```c
+// Set the page fault upcall for 'envid' by modifying the corresponding struct
+// Env's 'env_pgfault_upcall' field.  When 'envid' causes a page fault, the
+// kernel will push a fault record onto the exception stack, then branch to
+// 'func'.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//  -E_BAD_ENV if environment envid doesn't currently exist,
+//      or the caller doesn't have permission to change envid.
+static int
+sys_env_set_pgfault_upcall(envid_t envid, void *func)
+{
+    // LAB 4: Your code here.
+    struct Env *e; 
+    int ret = envid2env(envid, &e, 1);
+    if (ret) return ret;    //bad_env
+    e->env_pgfault_upcall = func;
+    return 0;
+    panic("sys_env_set_pgfault_upcall not implemented");
+}
+```
+
+
+
+
+### Normal and Exception Stacks in User Environments
+
+在正常运行期间，JOS的一个用户环境将会在正常的用户栈上运行：它的ESP寄存器从USTACKTOP开始，并将它push的栈数据置于USTACKTOP-PGSIZE 和 USTACKTOP-1之间。当一个页错误出现在用户模式下，内核就会在一个运行着用户级别页错误处理的不同的栈上重启用户环境，那个栈就叫做 **用户异常栈**。JOS将替换用户环境实现自动的“栈切换”，这个和x86处理器已经实现的从用户模式到内核模式切换到实现大致是同样的方式。
+
+JOS的用户异常栈也是规格大小为一个页，并且它的顶有虚拟地址UXSTACKTOP定义。因此有效的用户异常栈的区间是 UXSTACKTOP-PGSIZE 到 UXSTACKTOP-1。当在异常栈上运行时，用户级别的页错误处理可以使用JOS的常规的系统调用，来映射新的页活着调整映射，来修正那些造成页错误的问题。然后用户级别页错误处理程序通过一个汇编程序stub返回到原始栈的错误代码处。
+
+每一个想要支持用户级别页错误处理的用户环境都需要为自己的异常栈分配内存，这就用到了在part A中引入的sys_page_alloc()系统调用函数。
+
+到目前位置出现了三个栈： 
+　　[KSTACKTOP, KSTACKTOP-KSTKSIZE]    内核态系统栈
+
+　　[UXSTACKTOP, UXSTACKTOP - PGSIZE]  用户态错误处理栈
+
+　　[USTACKTOP, UTEXT]                 用户态运行栈
+
+
+内核态系统栈是运行内核相关程序的栈，在有中断被触发之后，CPU会将栈自动切换到内核栈上来，而内核栈的设置是在kern/trap.c的trap_init_percpu()中设置的。
+
+```c
+void
+trap_init_percpu(void)
+{
+        // Setup a TSS so that we get the right stack
+        // when we trap to the kernel.
+        thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - cpunum() * (KSTKGAP + KSTKSIZE);
+        thiscpu->cpu_ts.ts_ss0 = GD_KD;
+
+        // Initialize the TSS slot of the gdt.
+        gdt[(GD_TSS0 >> 3) + cpunum()] = SEG16(STS_T32A, (uint32_t) (&thiscpu->cpu_ts),
+                                        sizeof(struct Taskstate) - 1, 0);
+        gdt[(GD_TSS0 >> 3) + cpunum()].sd_s = 0;
+
+        // Load the TSS selector (like other segment selectors, the
+        // bottom three bits are special; we leave them 0)
+        ltr(GD_TSS0 + sizeof(struct Segdesc) * cpunum());
+
+        // Load the IDT
+        lidt(&idt_pd);
+}
+```
+
+用户定义注册了自己的中断处理程序之后，相应的例程运行时的栈，整个过程如下： 
+
+首先陷入到内核，栈位置从用户运行栈切换到内核栈，进入到trap中，进行中断处理分发，进入到page_fault_handler() 当确认是用户程序触发的page fault的时候(内核触发的直接panic了)，为其在用户错误栈里分配一个UTrapframe的大小把栈切换到用户错误栈，运行响应的用户中断处理程序中断处理程序可能会触发另外一个同类型的中断，这个时候就会产生递归式的处理。处理完成之后，返回到用户运行栈。 
+
+### Invoking the User Page Fault Handler
+
+这时需要改变在kern/trap.c中的页错误处理代码来解决下面来自用户模式的页错误。你将在错误陷入时间状态的时候调用用户的环境。
+
+如果没有已注册的页错误处理，JOS将会销毁用户环境。否则，内核就会在异常栈建立一个trap frame 就类似于inc/trap.h中的 struct UTrapframe：
+
+```
+                    <-- UXSTACKTOP
+trap-time esp
+trap-time eflags
+trap-time eip
+trap-time eax       start of struct PushRegs
+trap-time ecx
+trap-time edx
+trap-time ebx
+trap-time esp
+trap-time ebp
+trap-time esi
+trap-time edi       end of struct PushRegs
+tf_err (error code)
+fault_va            <-- %esp when handler is run
+```
+
+然后内核就检查一下在异常栈这栈帧上的页错误处理的执行，这里必须搞清楚它是怎样发生的。而fault_va就是导致页错误的虚拟地址。
+
+如果当一个异常发生的时候，用户环境已经在用户异常栈上执行了，那么页错误处理也就发生错误了。在这种情况下，就需要从新的栈帧开始，也就是在当前的tf->tf_esp 之下，而不是UXSTACKTOP。首先需要push32位字，然后是一个 struct UTrapframe。
+
+检查 tf->tf_esp 是否在UXSTACKTOP-PGSIZE 和 UXSTACKTOP-1之间可以测试它是否已在用户异常栈上。
+
+>Exercise 9. Implement the code in page_fault_handler in kern/trap.c required to dispatch page faults to the user-mode handler. Be sure to take appropriate precautions when writing into the exception stack. (What happens if the user environment runs out of space on the exception stack?)
+
+```c 
+void
+page_fault_handler(struct Trapframe *tf)
+{
+    uint32_t fault_va;
+
+    // Read processor's CR2 register to find the faulting address
+    fault_va = rcr2();
+    cprintf("fault_va: %x\n", fault_va);
+
+    // Handle kernel-mode page faults.
+
+    // LAB 3: Your code here.
+    if ((tf->tf_cs&3) == 0) {
+        panic("Kernel page fault!");
+    }
+
+    // We've already handled kernel-mode exceptions, so if we get here,
+    // the page fault happened in user mode.
+
+    // Call the environment's page fault upcall, if one exists.  Set up a
+    // page fault stack frame on the user exception stack (below
+    // UXSTACKTOP), then branch to curenv->env_pgfault_upcall.
+    //
+    // The page fault upcall might cause another page fault, in which case
+    // we branch to the page fault upcall recursively, pushing another
+    // page fault stack frame on top of the user exception stack.
+    //
+    // The trap handler needs one word of scratch space at the top of the
+    // trap-time stack in order to return.  In the non-recursive case, we
+    // don't have to worry about this because the top of the regular user
+    // stack is free.  In the recursive case, this means we have to leave
+    // an extra word between the current top of the exception stack and
+    // the new stack frame because the exception stack _is_ the trap-time
+    // stack.
+    //
+    // If there's no page fault upcall, the environment didn't allocate a
+    // page for its exception stack or can't write to it, or the exception
+    // stack overflows, then destroy the environment that caused the fault.
+    // Note that the grade script assumes you will first check for the page
+    // fault upcall and print the "user fault va" message below if there is
+    // none.  The remaining three checks can be combined into a single test.
+    //
+    // Hints:
+    //   user_mem_assert() and env_run() are useful here.
+    //   To change what the user environment runs, modify 'curenv->env_tf'
+    //   (the 'tf' variable points at 'curenv->env_tf').
+
+    // LAB 4: Your code here.
+    if (curenv->env_pgfault_upcall) {
+        struct UTrapframe *utf;
+        uintptr_t utf_addr;
+        if (UXSTACKTOP-PGSIZE<=tf->tf_esp && tf->tf_esp<=UXSTACKTOP-1)
+            utf_addr = tf->tf_esp - sizeof(struct UTrapframe) - 4;
+        else 
+            utf_addr = UXSTACKTOP - sizeof(struct UTrapframe);
+        user_mem_assert(curenv, (void*)utf_addr, sizeof(struct UTrapframe), PTE_W);//1 is enough
+        utf = (struct UTrapframe *) utf_addr;
+
+        utf->utf_fault_va = fault_va;
+        utf->utf_err = tf->tf_err;
+        utf->utf_regs = tf->tf_regs;
+        utf->utf_eip = tf->tf_eip;
+        utf->utf_eflags = tf->tf_eflags;
+        utf->utf_esp = tf->tf_esp;
+
+//      curenv->env_tf.env_tf
+        curenv->env_tf.tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+        curenv->env_tf.tf_esp = utf_addr;
+        env_run(curenv);
+    }
+
+    // Destroy the environment that caused the fault.
+    cprintf("[%08x] user fault va %08x ip %08x\n",
+        curenv->env_id, fault_va, tf->tf_eip);
+    print_trapframe(tf);
+    env_destroy(curenv);
+}
+```
+
+
+### User-mode Page Fault Entrypoint
+
+接下来，就需要汇编实现功能：当从用户定义的处理函数返回之后，如何从用户错误栈直接返回到用户运行栈。 
+
+>Exercise 10. Implement the _pgfault_upcall routine in lib/pfentry.S. The interesting part is returning to the original point in the user code that caused the page fault. You'll return directly there, without going back through the kernel. The hard part is simultaneously switching stacks and re-loading the EIP.
+
+```c 
+// Throughout the remaining code, think carefully about what
+    // registers are available for intermediate calculations.  You
+    // may find that you have to rearrange your code in non-obvious
+    // ways as registers become unavailable as scratch space.
+    //
+    // LAB 4: Your code here.
+    movl 0x28(%esp), %edx #trap-time eip
+    subl $0x4, 0x30(%esp)
+    movl 0x30(%esp), %eax #trap-time esp-4
+    movl %edx, (%eax)
+    addl $0x8, %esp
+
+    // Restore the trap-time registers.  After you do this, you
+    // can no longer modify any general-purpose registers.
+    // LAB 4: Your code here.
+    popal
+
+    // Restore eflags from the stack.  After you do this, you can
+    // no longer use arithmetic operations or anything else that
+    // modifies eflags.
+    // LAB 4: Your code here.
+    addl $0x4, %esp #eip
+    popfl
+
+    // Switch back to the adjusted trap-time stack.
+    // LAB 4: Your code here.
+    popl %esp
+
+    // Return to re-execute the instruction that faulted.
+    // LAB 4: Your code here.
+    ret
+
+```
+
+实现C库用户态的page fault处理函数。 
+
+>Exercise 11. Finish set_pgfault_handler() in lib/pgfault.c.
+
+根据注视得到设置页错误处理函数。如果没有页错误，_pgfault_handler将会是0。我们第一次注册一个处理需要分配一个异常栈，并且告诉内核当一个页错误出现时要调用汇编语言程序_pgfault_upcall。
+
+```c 
+void
+set_pgfault_handler(void (*handler)(struct UTrapframe *utf))
+{
+    // int r;
+
+    if (_pgfault_handler == 0) {
+        // First time through!
+        // LAB 4: Your code here.
+        if (sys_page_alloc(0, (void*)(UXSTACKTOP-PGSIZE), PTE_W|PTE_U|PTE_P) < 0) 
+            panic("set_pgfault_handler:sys_page_alloc failed");;
+    }
+    // Save handler pointer for assembly to call.
+    _pgfault_handler = handler;
+    if (sys_env_set_pgfault_upcall(0, _pgfault_upcall) < 0)
+        panic("set_pgfault_handler:sys_env_set_pgfault_upcall failed");
+}
+```
+
+
+## Implementing Copy-on-Write Fork
+
+现在已经有了在用户空间实现 copy-on-write fork()的整个内核基础。
+
+我们在lib/fork.c中提供了一个框架，与dumbfork()，fork()类似，需要创建一个新环境，然后扫描整个父进程的地址空间，并且设置对应的在子进程的页映射。主要不同的是，当dumpfork()拷贝整个页，而fork(）起初将只拷贝页的映射。fork()只会在其中一个进程想要去写地址空间时才会复制页。
+
+fork()基本的控制流如下：
+
+- 父进程配置 pgfault() 函数作为C-level的页错误处理，会用到上面的实现的set_pgfault_handler()。
+- 父进程调用sys_exofork()创建一个子进程环境。
+- 对于在UTOP之下的在地址空间里的每一个可写或copy-on-write的页，父进程就会调用duppage，它会将copy-on-write页映射到子进程的地址空间，然后重新映射copy-on-write页到自己的地址空间。[注意这里的顺序十分重要！知道为什么吗？你可以尝试思考将该顺序弄反会是造成怎样的麻烦]。duppage设置它们的PTEs，以便页是不能写的，然后在抑制无效领域的 PTE_COW 来区别 copy-on-write pages及原始的只读页。 
+
+fork()同样要解决现在的页，但页不可写以及是copy-on-write。
+- 父进程为子进程设置用户页错误入口。
+- 子进程现在可以运行，然后父进程将其标记为可运行。
+
+每次这两进程中的一个向一个空的copy-on-write页写时，就会产生一个页错误。下面是用户页错误处理的控制流：
+
+- 内核传播页错误到_pgfault_upcall，调用fork()的pgfault() handler。
+- pgfault() 检查错误代码中的FEC_WR，然后页中的PTE标记为 PTE_COW。没有的话，panic。
+- pgfault() 分配一个映射在一个临时位置的新的页，然后将错误页中的内容复制进去。然后错误处理映射新的页到何时的带有读写权限的地址，替换院线的旧的只读的映射。
+
+>Exercise 12. Implement fork, duppage and pgfault in lib/fork.c.
+
+```c 
+//
+// User-level fork with copy-on-write.
+// Set up our page fault handler appropriately.
+// Create a child.
+// Copy our address space and page fault handler setup to the child.
+// Then mark the child as runnable and return.
+//
+// Returns: child's envid to the parent, 0 to the child, < 0 on error.
+// It is also OK to panic on error.
+//
+// Hint:
+//   Use uvpd, uvpt, and duppage.
+//   Remember to fix "thisenv" in the child process.
+//   Neither user exception stack should ever be marked copy-on-write,
+//   so you must allocate a new page for the child's user exception stack.
+//
+envid_t
+fork(void)
+{
+    set_pgfault_handler(pgfault);
+
+    envid_t envid;
+    uint32_t addr;
+    envid = sys_exofork();
+    if (envid == 0) {
+        // panic("child");
+        thisenv = &envs[ENVX(sys_getenvid())];
+        return 0;
+    }
+    // cprintf("sys_exofork: %x\n", envid);
+    if (envid < 0)
+        panic("sys_exofork: %e", envid);
+
+    for (addr = 0; addr < USTACKTOP; addr += PGSIZE)
+        if ((uvpd[PDX(addr)] & PTE_P) && (uvpt[PGNUM(addr)] & PTE_P)
+            && (uvpt[PGNUM(addr)] & PTE_U)) {
+            // cprintf("envid: %x, PGNUM: %x, addr: %x\n", envid, PGNUM(addr), addr);
+            // if (addr!=0x802000) {
+            duppage(envid, PGNUM(addr));
+            // } else panic("user fork");
+            // cprintf("duppage done\n");
+            // cprintf("%x\n", uvpd[PDX(addr)]);
+            // cprintf("%x\n", uvpt[PGNUM(addr)]);
+        }
+    // panic("faint");
+
+
+    if (sys_page_alloc(envid, (void *)(UXSTACKTOP-PGSIZE), PTE_U|PTE_W|PTE_P) < 0)
+        panic("1");
+    extern void _pgfault_upcall();
+    sys_env_set_pgfault_upcall(envid, _pgfault_upcall);
+
+    if (sys_env_set_status(envid, ENV_RUNNABLE) < 0)
+        panic("sys_env_set_status");
+
+    return envid;
+    panic("fork not implemented");
+}
+```
+
+
+```c 
+//
+// Map our virtual page pn (address pn*PGSIZE) into the target envid
+// at the same virtual address.  If the page is writable or copy-on-write,
+// the new mapping must be created copy-on-write, and then our mapping must be
+// marked copy-on-write as well.  (Exercise: Why do we need to mark ours
+// copy-on-write again if it was already copy-on-write at the beginning of
+// this function?)
+//
+// Returns: 0 on success, < 0 on error.
+// It is also OK to panic on error.
+//
+static int
+duppage(envid_t envid, unsigned pn)
+{
+    int r;
+    // LAB 4: Your code here.
+    // cprintf("1\n");
+    void *addr = (void*) (pn*PGSIZE);
+    if ((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW)) {
+        if (sys_page_map(0, addr, envid, addr, PTE_COW|PTE_U|PTE_P) < 0)
+            panic("2");
+        if (sys_page_map(0, addr, 0, addr, PTE_COW|PTE_U|PTE_P) < 0)
+            panic("3");
+    } else sys_page_map(0, addr, envid, addr, PTE_U|PTE_P);
+    // cprintf("2\n");
+    return 0;
+    panic("duppage not implemented");
+}
+```
+
+```c 
+//
+// Custom page fault handler - if faulting page is copy-on-write,
+// map in our own private writable copy.
+//
+static void
+pgfault(struct UTrapframe *utf)
+{
+    // panic("pgfault");
+    void *addr = (void *) utf->utf_fault_va;
+    uint32_t err = utf->utf_err;
+    int r;
+
+    // Check that the faulting access was (1) a write, and (2) to a
+    // copy-on-write page.  If not, panic.
+    // Hint: 
+    //   Use the read-only page table mappings at uvpt
+    //   (see <inc/memlayout.h>).
+
+    // LAB 4: Your code here.
+    if (!(
+            (err & FEC_WR) && (uvpd[PDX(addr)] & PTE_P) && 
+            (uvpt[PGNUM(addr)] & PTE_P) && (uvpt[PGNUM(addr)] & PTE_COW)))
+        panic("not copy-on-write");
+    // panic("pgfault");
+    // Allocate a new page, map it at a temporary location (PFTEMP),
+    // copy the data from the old page to the new page, then move the new
+    // page to the old page's address.
+    // Hint:
+    //   You should make three system calls.
+    //   No need to explicitly delete the old page's mapping.
+
+    // LAB 4: Your code here.
+    addr = ROUNDDOWN(addr, PGSIZE);
+    if (sys_page_alloc(0, PFTEMP, PTE_W|PTE_U|PTE_P) < 0)
+        panic("sys_page_alloc");
+    memcpy(PFTEMP, addr, PGSIZE);
+    if (sys_page_map(0, PFTEMP, 0, addr, PTE_W|PTE_U|PTE_P) < 0)
+        panic("sys_page_map");
+    if (sys_page_unmap(0, PFTEMP) < 0)
+        panic("sys_page_unmap");
+    return;
+}
+```
+
+
+
+## 参考资料
+
+
+1.http://46aae4d1e2371e4aa769798941cef698.devproxy.yunshipei.com/bysui/article/details/51842817
+
+2.https://github.com/Clann24/jos/tree/master/lab4/partB
+
+
+
+
+
+
+
+
+
+
+
+
+

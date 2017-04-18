@@ -1,0 +1,39 @@
+---
+layout: post
+title:  "MIT6.828 Lab 4: Preemptive Multitasking Part C: Preemptive Multitasking and Inter-Process communication (IPC)"
+tags: [MIT6.828,OS,process]
+comments: true
+description: "MIT操作系统6.828实验4第三部分：Copy-on-Write Fork"
+keywords: ""
+date:   2017-04-14 14:40:22 +0800
+---
+
+在实验4的最后一个部分你将要修改内核，去实现抢占时非协作环境(进程)，以允许环境进程可以很明确地相互传达信息。
+
+## Clock Interrupts and Preemption
+
+为了能允许内核有一个抢占式的运行环境，能够强制地重新获取CPU的控制权，我们必须拓展JOS使其能够从时钟硬件中得到硬件中断。
+
+### Interrupt discipline
+
+
+
+## 参考资料
+
+
+1.http://46aae4d1e2371e4aa769798941cef698.devproxy.yunshipei.com/bysui/article/details/51842817
+
+2.https://github.com/Clann24/jos/tree/master/lab4/partB
+
+
+
+
+
+
+
+
+
+
+
+
+

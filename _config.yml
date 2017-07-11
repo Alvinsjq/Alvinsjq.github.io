@@ -19,7 +19,10 @@ comments: true
 permalink   : /:year/:title/
 markdown    : kramdown
 highlighter : rouge
-
+kramdown:
+  input: GFM
+  auto_ids: true
+  syntax_highlighter: rouge
 source: ./
 destination: ./_site
 
@@ -31,7 +34,7 @@ sass:
 # Author settings
 author:
   name     : "Alvinsjq"
-  job      : "Software Master in ECNU"
+  job      : "Meng in ECNU"
   bio      : "想要多懂点的家伙。"
   thumb    : /images/author.jpg
   email    : shijian_ecnu@163.com

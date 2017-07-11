@@ -51,6 +51,19 @@ display_social_icons: true # Edit file in /_includes/social_links.html
 gems:
   - bourbon
   - jekyll-paginate
+  - kramdown
+
+
+kramdown:
+  input: GFM
+  extensions:
+    - autolink
+    - footnotes
+    - smart
+  use_coderay: true
+  syntax_highlighter: rouge
+  coderay:
+    coderay_line_numbers:  nil
 
 # navbar pages
 navbar:

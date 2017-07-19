@@ -18,9 +18,9 @@ body {
   }
 
   &:after {
-   
+    content: " ";
+    display: table;
     clear: both;
-
   }
 
   *zoom: 1;

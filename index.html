@@ -39,7 +39,11 @@ title: Home
           <article class="post-item">
             <span class="post-meta date-label">{{ post.date | date: "%b %d" }}</span>
             <div class="article-title"><a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
+           
            {{ post.excerpt }}
+
+           <div >        
+           </div>
             </div>
           </article>
         {% assign counter = counter | plus: 1 %}
@@ -47,6 +51,39 @@ title: Home
     {% endfor %}
   </div>
 
+
+
+<!-- read more list -->
+
+<div class="container">
+    {% assign counter = 0 %}
+    {% for post in site.posts %} 
+      {% if counter == 5 %}
+        {% break %}
+      {% else %}
+          {% unless post.next %}
+         
+          {% else %}
+            {% capture year %}{{ post.date | date: '%Y' }}{% endcapture %}
+            {% capture nyear %}{{ post.next.date | date: '%Y' }}{% endcapture %}
+            {% if year != nyear %}
+             
+            {% endif %}
+          {% endunless %}
+          <article class="post-item">
+            <span class="post-meta date-label">{{ post.date | date: "%b %d" }}</span>
+         
+                  <div class="read-more-content">
+                  <h3><a href="{{ site.url }}{{ post.url }}" title="{{ post.title }}">{{ post.title }}</a></h3>
+                  <p>{% if post.description %}{{ post.description }}{% else %}{{ post.content | strip_html | strip_newlines | truncate: 140 }}&hellip;{% endif %} <a href="{{ site.url }}{{ post.url }}">Continue reading</a></p>
+                  </div><!-- /.read-more-content -->
+
+            </div>
+          </article>
+        {% assign counter = counter | plus: 1 %}
+      {% endif %}
+    {% endfor %}
+  </div>
 
 
 <hr/>

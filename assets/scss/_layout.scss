@@ -12,20 +12,6 @@ body {
   height: 100%;
 }
 
-.clearfix {
-  &:before {
-    content: " ";
-    display: table;
-  }
-
-  &:after {
-    content: " ";
-    display: table;
-    clear: both;
-  }
-
-  *zoom: 1;
-}
 
 body {
   background-color: $white-color;

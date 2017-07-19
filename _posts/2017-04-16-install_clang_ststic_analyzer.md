@@ -27,7 +27,7 @@ int main()
     return 0;  
 } 
 ```
-
+<!--more-->
 - 到达mamleak.c路径下，执行 ```$ scan-build clang -c memleak.c```命令,得到类似结果：
 
 ```

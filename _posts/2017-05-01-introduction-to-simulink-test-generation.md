@@ -30,7 +30,7 @@ date:   2017-05-01 13:40:22 +0800
 ### Model-checking based automated test generation approach （基于自动模型检查的测生成技术）
 
 该技术将测试对象的否定的反例作为测试用例。例如Mathworks的Simulink Design Verifier工具就提供了基于自动模型检测测试生成技术为Simulink/Stateflow模型生成测试用例，并限制一些块不能被分析，以及只能够实现块层次的覆盖。完成转换Simulink/Stateflow到形式语言的实验室叫做符号分析实验室（Symbolic Analysis Laboratory - SAL），他们是基于模型检测实现的。除此之外还有很多团队，例如Marre and Arnould、Sofronis and co-workers、Miller et al等，都用到了Lustre。Simulink Design Verifier用一个叫做Prover，但它对于生成非线性方程的测试用例有一定的缺陷。微软的Z3是一个能解决非线性方程的成熟的证明器。
-
+<!--more-->
 ### Constraint-solving based automated test generation approach（基于解决限制的自动测试生成技术）
 
 该技术应用在 Gotlieb et al.上。而对于由NASA开发的Symbolic PathFinder，结合了符号执行和解决限制来进行测试的自动生成。利用该技术的流行的工具还有CPLEX , MATLAB , Maple 等。

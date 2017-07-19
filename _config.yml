@@ -50,7 +50,7 @@ twitter_card: "summary_large_image"
 twitter_site: "@Alvin_sjq"
 display_social_icons: true # Edit file in /_includes/social_links.html
 
-
+excerpt_separator: <!--more-->
 gems:
   - bourbon
   - jekyll-paginate

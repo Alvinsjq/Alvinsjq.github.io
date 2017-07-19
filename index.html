@@ -73,6 +73,18 @@ title: Home
           <div class="read-more">
         
               <div class="read-more-content">
+
+                      <div class="entry-meta">
+                      <span class="entry-date date published updated"><time datetime="{{ post.date | date_to_xmlschema }}"><a href="{{ site.url }}{{ post.url }}">{{ post.date | date: "%B %d, %Y" }}</a></time></span>
+                      <span class="author vcard"><span class="fn"><a href="{{ site.url }}/about/" title="About {{ site.owner.name }}">{{ site.owner.name }}</a></span></span>
+                      {% if site.reading_time %}
+                      <span class="entry-reading-time">
+                        <i class="fa fa-clock-o"></i>
+                        {% include read-time-index.html %}
+                      </span><!-- /.entry-reading-time -->
+                      {% endif %}
+                    </div><!-- /.entry-meta -->
+            
                 <h3><a href="{{ site.url }}{{ post.url }}" title="{{ post.title }}">{{ post.title }}</a></h3>
                 <p>{% if post.description %}{{ post.description }}{% else %}{{ post.excerpt | strip_html | strip_newlines | truncate: 140 }}&hellip;{% endif %} <a href="{{ site.url }}{{ post.url }}">Continue reading</a></p>
               </div><!-- /.read-more-content -->            
@@ -87,7 +99,7 @@ title: Home
 <!-- read more list another -->
 
 
-
+<div class="container">
     {% assign counter = 0 %}
     {% for post in site.posts %} 
     
@@ -133,7 +145,7 @@ title: Home
 
     
     {% endfor %}
-
+</div>
 
 
 

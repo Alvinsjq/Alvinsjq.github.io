@@ -19,6 +19,10 @@
 @import "animations";
 @import "dl-menu";
 @import "page";
+//@import "main";
 
-
-@import "main";
+@import "bourbon/bourbon";
+@import "variables";
+@import "base/base";
+@import "layout";
+@import "syntax-highlighting";

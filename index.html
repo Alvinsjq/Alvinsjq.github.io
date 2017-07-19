@@ -22,7 +22,7 @@ title: Home
 </style>
 <section class="post-list">
   <div class="container">
-    {% assign counter 1 %}
+    {% assign counter = 1 %}
     {% for post in site.posts %} 
       {% if counter == 10 %}
         {% break %}

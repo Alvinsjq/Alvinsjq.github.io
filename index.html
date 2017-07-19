@@ -56,22 +56,23 @@ title: Home
 <!-- read more list -->
 
  <div class="container">
-    {% assign counter = 0 %}
-     <div class="read-more">
-    {% for post in site.posts %} 
-      {% if counter == 5 %}
-        {% break %}
-      {% else %}
-          {% unless post.next %}
-         
-          {% else %}
-            {% capture year %}{{ post.date | date: '%Y' }}{% endcapture %}
-            {% capture nyear %}{{ post.next.date | date: '%Y' }}{% endcapture %}
-            {% if year != nyear %}
-             
-            {% endif %}
+           <div class="read-more">
+             {% for post in site.posts %} 
+               {% if counter == 5 %}
+                {% break %}
+              {% else %}
+                  {% unless post.next %}
+                 
+                  {% else %}
+                    {% capture year %}{{ post.date | date: '%Y' }}{% endcapture %}
+                    {% capture nyear %}{{ post.next.date | date: '%Y' }}{% endcapture %}
+                    {% if year != nyear %}
+                     
+                    {% endif %}
           {% endunless %}
-   
+                <div class="read-more-header">
+                  <a href="{{ site.url }}{{ page.previous.url }}" class="read-more-btn">Read More</a>
+                </div><!-- /.read-more-header -->
                 <div class="read-more-content">
                   <h3><a href="{{ site.url }}{{ post.url }}" title="{{ post.title }}">{{ post.title }}</a></h3>
                   <p>{% if post.description %}{{ post.description }}{% else %}{{ post.excerpt | strip_html | strip_newlines | truncate: 140 }}&hellip;{% endif %} <a href="{{ site.url }}{{ post.url }}">Continue reading</a></p>
@@ -79,8 +80,6 @@ title: Home
               {% endfor %}
           </div><!-- /.read-more -->
 
-            </div>
-          </article>
         {% assign counter = counter | plus: 1 %}
       {% endif %}
     {% endfor %}

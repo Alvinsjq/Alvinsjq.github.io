@@ -10,14 +10,7 @@ date:   2017-05-01 13:40:22 +0800
 
 最近实验室又有新的研究任务，这次与Simulink/ Stateflow 模型的测试用例自动生成相关，与传统的软件测试中的测试用例相同，这里也有覆盖率这一标准，那么如何提高模型的测试用例的覆盖率呢，这篇博文作为相关论文的阅读笔记，了解了一个生成工具....
 
-
-<iframe 
-  width="560" 
-  height="315" 
-  src="https://www.youtube.com/watch?v=XnGvSorCbAI" 
-  frameborder="0" 
-  allowfullscreen>
-</iframe>
+<div class="video-container"><iframe src="https://www.youtube.com/watch?v=XnGvSorCbAI" frameborder="0" allowfullscreen></iframe></div>
 
 首先了解一下几种该领域的测试用例生成技术以及一些有名的工具。
 ## 测试用例生成技术

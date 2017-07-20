@@ -8,11 +8,14 @@ layout: default
     {% if page.author %} • <span itemprop="author" itemscope itemtype="http://schema.org/Person"><span itemprop="name">{{ page.author }}</span></span>{% endif %}
 
     {% if site.leancloud.enable %}
-          <span id="{{ post.url }}" class="leancloud_visitors" data-flag-title="{{ post.title }}">
-           <span class="post-meta-divider">|</span>
-           <span class="post-meta-item-text"> Hits:  </span>
-           <span class="leancloud-visitors-count"></span>
-          </span>
+           <span id="{{ site.url }}" class="leancloud_visitors meta_data_item" data-flag-title="">
+     <span class="post-meta-item-icon">
+       <span class="octicon octicon-eye"></span> 
+     </span>
+     <span class="old-visitors-count" style="display: none;"></span>
+     <span class="leancloud-visitors-count"></span>
+     <span class="post-meta-item-text">次浏览</span>
+    </span>
     {% endif %}
 
     </p>

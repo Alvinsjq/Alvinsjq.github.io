@@ -5,6 +5,7 @@ tags: [clang,static analyzer,LLVM,编译原理]
 comments: true
 description: "这是Apple的一个presentation，题为Finding software bugs with the Clang Static Analyzer,演讲者叫Ted Kremenek."
 keywords: ""
+categries: 
 date:   2017-04-25 13:40:22 +0800
 ---
 

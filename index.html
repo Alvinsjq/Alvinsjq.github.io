@@ -47,7 +47,7 @@ title: Home
           <div class="read-more">
               <div class="read-more-content">
                       <div class="entry-meta">
-                      <span class="entry-date date published updated"><time datetime="{{ post.date | date_to_xmlschema }}"><a href="{{ site.url }}{{ post.url }}">{{ post.date | date: "%B %d, %Y" }}</a></time></span>
+                      <span class="entry-date date published updated"><a href="{{ site.url }}{{ post.url }}">{{ post.date | date: "%B %d, %Y" }}</a></span>
                       <span class="author vcard"><span class="fn"><a href="{{ site.url }}/about/" title="About {{ site.owner.name }}">{{ site.author.name }}</a></span></span>
         
     <!--     <span id="{{ post.url }}" class="leancloud_visitors" data-flag-title="{{ post.title }}">
@@ -55,13 +55,6 @@ title: Home
         <span class="post-meta-item-text"> 浏览次数:  </span>
         <span class="leancloud-visitors-count"></span>
         </span> -->
-
-                      {% if site.reading_time %}
-                      <span class="entry-reading-time">
-                        <i class="fa fa-clock-o"></i>
-                        {% include read-time-index.html %}
-                      </span><!-- /.entry-reading-time -->
-                      {% endif %}
                     </div><!-- /.entry-meta -->
 
                 <h4><a href="{{ site.url }}{{ post.url }}" title="{{ post.title }}">{{ post.title }}</a></h4>

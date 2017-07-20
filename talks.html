@@ -21,7 +21,7 @@ title: Home
 
 
 <!-一些关于标签的代码->
-{% assign rawtags = "" %}
+<!-- {% assign rawtags = "" %}
 {% for post in site.posts %}
   {% assign ttags = post.tags | join:'|' | append:'|' %}
   {% assign rawtags = rawtags | append:ttags %}
@@ -38,16 +38,31 @@ title: Home
       {% assign tags = tags | join:'|' | append:'|' | append:tag | split:'|' %}
     {% endunless %}
   {% endif %}
-{% endfor %}
+{% endfor %} -->
+{% for post in site.posts %}
+	{% assign category = post.category | join:'|' | append:'|' %}
+	{% assign allcategories = allcategories | append:category %}
+{% endfor %}	
 
-
+{% assign allcategories = allcategories | split:'|' | sort %}
+{% assign categories = "" %}
+{% for category in allcategories %}
+	{% if category != "" %}
+		{% if categories == "" %}
+			{% assign categories = category | split:'|' %}
+		{% endif %}	
+		{% unless categories contains category %}
+			{% assign categories = categories | join:'|' | append:'|' | append:category | split:'|' %}
+		{% endunless %}	
+	{% endif %}
+{% endfor %}	
 
 <!-定义标签云的框架->
-{% if tags %}
+{% if categories %}
 <div class="tag-cloud" id="Tags">
 
-  {% for tag in tags %}
-    <a id="{{ tag | slugify }}" class="tag-anchor" href="{{ site.url }}{{ site.baseurl }}/tagged#{{ tag | slugify }}"><i class="fa fa-hashtag"></i> {{ tag }}</a>
+  {% for category in categories %}
+    <a id="{{ tag | slugify }}" class="tag-anchor" href=""><i class="fa fa-space-shuttle" aria-hidden="true"></i> {{ category }}</a>
   {% endfor %}
 </div>
 {% endif %}

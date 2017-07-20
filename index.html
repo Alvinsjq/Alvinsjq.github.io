@@ -17,6 +17,11 @@ title: Home
   }
 
 </style>
+
+
+
+
+  
 <section class="post-list">
 
 <!-- read more list -->
@@ -35,12 +40,24 @@ title: Home
              
             {% endif %}
           {% endunless %}
+
+       
+
           <article class="post-item">
           <div class="read-more">
               <div class="read-more-content">
                       <div class="entry-meta">
                       <span class="entry-date date published updated"><time datetime="{{ post.date | date_to_xmlschema }}"><a href="{{ site.url }}{{ post.url }}">{{ post.date | date: "%B %d, %Y" }}</a></time></span>
                       <span class="author vcard"><span class="fn"><a href="{{ site.url }}/about/" title="About {{ site.owner.name }}">{{ site.author.name }}</a></span></span>
+
+          {% if site.leancloud.enable %}
+          <span id="{{ post.url }}" class="leancloud_visitors" data-flag-title="{{ post.title }}">
+           <span class="post-meta-divider">|</span>
+           <span class="post-meta-item-text"> Hits:  </span>
+           <span class="leancloud-visitors-count"></span>
+          </span>
+           {% endif %}
+
                       {% if site.reading_time %}
                       <span class="entry-reading-time">
                         <i class="fa fa-clock-o"></i>

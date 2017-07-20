@@ -4,7 +4,18 @@ layout: default
 
 <article class="post container" itemscope itemtype="http://schema.org/BlogPosting">
   <header class="post-header">
-    <p class="post-meta"><time datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">{{ page.date | date: "%b %-d, %Y" }}</time>{% if page.author %} • <span itemprop="author" itemscope itemtype="http://schema.org/Person"><span itemprop="name">{{ page.author }}</span></span>{% endif %}</p>
+    <p class="post-meta"><time datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">{{ page.date | date: "%b %-d, %Y" }}</time>
+    {% if page.author %} • <span itemprop="author" itemscope itemtype="http://schema.org/Person"><span itemprop="name">{{ page.author }}</span></span>{% endif %}
+
+    {% if site.leancloud.enable %}
+          <span id="{{ post.url }}" class="leancloud_visitors" data-flag-title="{{ post.title }}">
+           <span class="post-meta-divider">|</span>
+           <span class="post-meta-item-text"> Hits:  </span>
+           <span class="leancloud-visitors-count"></span>
+          </span>
+    {% endif %}
+
+    </p>
     <h1 class="post-title" itemprop="name headline">{{ page.title }}</h1>
     <script type="text/x-mathjax-config"> MathJax.Hub.Config({ TeX: { equationNumbers: { autoNumber: "all" } } }); </script>
        <script type="text/x-mathjax-config">
@@ -58,14 +69,7 @@ layout: default
 }
 </style>
 
-<span id="https://alvinsjq.github.io/" class="leancloud_visitors meta_data_item" data-flag-title="">
-     <span class="post-meta-item-icon">
-       <span class="octicon octicon-eye"></span> 
-     </span>
-     <span class="old-visitors-count" style="display: none;"></span>
-     <span class="leancloud-visitors-count"></span>
-     <span class="post-meta-item-text">次浏览</span>
-</span>
+
 
 {% assign post = page %}
 		{% if post.tags.size > 0 %}

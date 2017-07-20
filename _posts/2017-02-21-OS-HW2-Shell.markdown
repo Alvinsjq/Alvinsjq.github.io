@@ -3,6 +3,7 @@ layout: post
 title:  "MIT6.828 HW 2:Shell"
 tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828HW, xv6,shell]
 comments: true
+category: 操作系统
 description: "这是课程的作业2:熟悉shell。"
 keywords: "OS,xv6，shell"
 date:   2017-02-21 16:36:58 +0800

@@ -49,14 +49,12 @@ title: Home
                       <div class="entry-meta">
                       <span class="entry-date date published updated"><time datetime="{{ post.date | date_to_xmlschema }}"><a href="{{ site.url }}{{ post.url }}">{{ post.date | date: "%B %d, %Y" }}</a></time></span>
                       <span class="author vcard"><span class="fn"><a href="{{ site.url }}/about/" title="About {{ site.owner.name }}">{{ site.author.name }}</a></span></span>
-
-          {% if site.leancloud.enable %}
-        <span id="{{ post.url }}" class="leancloud_visitors" data-flag-title="">
-         <span class="post-meta-divider">|</span>
-         <span class="post-meta-item-text"> 浏览次数: </span>
-         <span class="leancloud-visitors-count"></span>
+        
+        <span id="{{ post.url }}" class="leancloud_visitors" data-flag-title="{{ post.title }}">
+        <span class="post-meta-divider">|</span>
+        <span class="post-meta-item-text"> 浏览次数:  </span>
+        <span class="leancloud-visitors-count"></span>
         </span>
-           {% endif %}
 
                       {% if site.reading_time %}
                       <span class="entry-reading-time">
@@ -67,7 +65,7 @@ title: Home
                     </div><!-- /.entry-meta -->
 
                 <h4><a href="{{ site.url }}{{ post.url }}" title="{{ post.title }}">{{ post.title }}</a></h4>
-                <h5>{{ post.url }}</h5>
+
                 <div class="entry-content">
                 {{ post.excerpt }}
                 <a href="{{ site.url }}{{ post.url }}">更多</a>

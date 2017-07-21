@@ -34,6 +34,13 @@ title: category
     color: #264d9c;
     font-weight: 100;
   }
+
+  .post-list-desc {
+    color: #888;
+    font-size: 80%;
+    padding-right: 110px;
+    font-size: small;
+}
 </style>
 
 
@@ -46,8 +53,11 @@ title: category
               <article class="post-item">
                   <span class="post-meta date-label">{{ post.date | date: "%b %d %Y" }}</span>
                   <div class="article-title"><a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a></div>
-                  <br>
-                        {{ post.description }}
+                   <div class="posts">
+                      <div class="post-list">
+                        <div class="post-list-desc">{{ post.description }}</div>
+                      </div>
+                      </div>
               </article>
                 {% endif %}
           {% endfor %}

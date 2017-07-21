@@ -42,7 +42,7 @@ title: category
     {% for category in categories %}
      <h2 class="category-title">{{ category }}</h2>
         {% for post in site.posts %}
-              {% if post.category == categories %}
+              {% if post.category contains categories %}
               <article class="post-item">
                   <span class="post-meta date-label">{{ post.date | date: "%b %d %Y" }}</span>
                   <div class="article-title"><a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a></div>

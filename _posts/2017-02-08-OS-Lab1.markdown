@@ -5,7 +5,6 @@ tags: [MIT6.828, Operating System, 操作系统, 学习历程 ,6828L1]
 comments: true
 description: "学习MIT6.828,估计会是个不错（被虐）的体验吧。这是这门课的实验一的第一部分"
 keywords: "OS"
-category: 操作系统
 date:   2017-02-08 19:57:58 +0800
 ---
 

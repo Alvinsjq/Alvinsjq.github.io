@@ -46,7 +46,8 @@ title: category
               <article class="post-item">
                   <span class="post-meta date-label">{{ post.date | date: "%b %d %Y" }}</span>
                   <div class="article-title"><a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a></div>
-                        <div class="post-list-desc">{{ post.description }}</div>
+                  <br>
+                        {{ post.description }}
               </article>
                 {% endif %}
           {% endfor %}

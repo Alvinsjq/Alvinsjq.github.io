@@ -29,7 +29,7 @@ date:   2017-07-22 00:38:22 +0800
 $$(\forall i,j,k) P(X=x_{i}|Y=y_{j},Z=z_{k})=P(X=x_{i}|Z=z_{k})$$
 
 
-因此我们就可以将$P(X|Y)$的概率写成：\[  P(X_{1},...,X_{n}|Y) = \prod_{i=1}^{n} P(X_{i}|Y) \]
+因此我们就可以将$P(X|Y)$的概率写成：$$  P(X_{1},...,X_{n}|Y) = \prod_{i=1}^{n} P(X_{i}|Y) $$
 
 <!--more-->
 
@@ -40,25 +40,23 @@ $$ \begin{align*}
  \phi_{i| y=1} & = p(x_{i}=1|\ y=1) \\
  \phi_{i| y=0} & = p(x_{i}=1|\ y=0) \\
  \phi_{i| y=1} & = p(y=1) 
- \end{align*}
-$$
+ \end{align*} $$
 
 由于似然概率$L(\phi_{i| y=1},\phi_{i| y=0}, \phi_{i| y=1}) = \prod_{i=1}^{m} p(x^{(i)},y^{(i)})$
 
 因此取对数并求偏导设为零可求得参数值
 
-$$
-\begin{align*}
+$$\begin{align*}
 \phi_{j|y=1} & = \frac{\sum_{i=1}^{m}1\{x_{j}^{(i)}=1 \land y^{(i)}=1 \}}{ \sum_{i=1}^{m} 1 \{ y^{(i)}=1\}} \\
 \phi_{j|y=0} & = \frac{\sum_{i=1}^{m}1\{x_{j}^{(i)}=1 \land y^{(i)}=0 \}}{ \sum_{i=1}^{m} 1 \{ y^{(i)}=0\}} \\
 \phi_{y} & = \frac{\sum_{i=1}^{m} 1 \{ y^{(i)}=1\}}{m}
-\end{align*}
-$$
+\end{align*}$$
 
 
 **测试**
+
 那么这样给定一个测试向量$X^{new}$，那么通过上面的参数我们就可以进行预测：
-\[ Y^{new} = arg\ max_{y} \frac{p(y)\prod_{i}p(x_{i}|y)}{p(y=0)\prod_{i}p(x_{i}|y=0)+p(y=1)\prod_{i}p(x_{i}|y=1)} \]
+$$ Y^{new} = arg\ max_{y} \frac{p(y)\prod_{i}p(x_{i}|y)}{p(y=0)\prod_{i}p(x_{i}|y=0)+p(y=1)\prod_{i}p(x_{i}|y=1)} $$
 
 #### 优化——拉普拉斯平滑
 
@@ -128,7 +126,7 @@ numTokens = size(trainMatrix, 2);    % trainMatrix矩阵的列数
 end
 ```
 
-**测试函数**
+**测试函数nb_test.m**
 
 ```c
 for k=1:numTestDocs,

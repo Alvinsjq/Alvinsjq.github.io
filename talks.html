@@ -62,7 +62,8 @@ title: Home
 <div class="tag-cloud" id="Tags">
 
   {% for category in categories %}
-    <a id="{{ tag | slugify }}" class="tag-anchor" href=""><i class="fa fa-space-shuttle" aria-hidden="true"></i> {{ category }}</a>
+    <a id="{{ tag | slugify }}" class="tag-anchor" href="{{ site.url }}{{ site.baseurl }}/category#{{ category | slugify }}><i class="fa fa-space-shuttle" aria-hidden="true"></i> {{ category }}</a>
+    <br>
   {% endfor %}
 </div>
 {% endif %}

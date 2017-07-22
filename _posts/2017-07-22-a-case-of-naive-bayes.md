@@ -29,7 +29,7 @@ date:   2017-07-22 00:38:22 +0800
 $$(\forall i,j,k) P(X=x_{i}|Y=y_{j},Z=z_{k})=P(X=x_{i}|Z=z_{k})$$
 
 
-因此我们就可以将$P(X|Y)$的概率写成：
+因此我们就可以将 $ P(X|Y) $ 的概率写成：
 
 $$P(X_{1},...,X_{n}|Y) = \prod_{i=1}^{n} P(X_{i}|Y)$$
 
@@ -128,8 +128,8 @@ numTokens = size(trainMatrix, 2);    % trainMatrix矩阵的列数
      pos_log_prior = log(size(pos,1) / numTrainDocs);  % y=0的先验概率
 
      for k=1:V,  % 对特征向量的每一个token计算它们的log先验概率，
-       neg_log_phi(k) = log((sum(neg(:,k)) + 1) / (neg_words + V));  % 对应公式(1)，注意这里的token计算的是出现的个数
-       pos_log_phi(k) = log((sum(pos(:,k)) + 1) / (pos_words + V));  % 对应公式(2) 
+       neg_log_phi(k) = log((sum(neg(:,k)) + 1) / (neg_words + V));  % 对应公式(11)，注意这里的token计算的是出现的个数
+       pos_log_phi(k) = log((sum(pos(:,k)) + 1) / (pos_words + V));  % 对应公式(12) 
 end
 ```
 

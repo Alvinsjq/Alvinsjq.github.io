@@ -1,6 +1,6 @@
 {% if site.comments %}
-
-<div id="gitmentContainer"></div>
+<aside id="comments" class="disqus">
+	<div id="gitmentContainer"></div>
 		<link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css">
 		<script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script>
 		<script>
@@ -13,6 +13,6 @@
 			  },
 		});
 		gitment.render('gitmentContainer');
-</script>
-
+		</script>
+ </aside>
 {% endif %}

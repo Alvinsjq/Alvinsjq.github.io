@@ -1,0 +1,18 @@
+{% if site.comments %}
+<div id="container"></div>
+<link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css">
+<script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script>
+<script>
+var gitment = new Gitment({
+  id: '', // 可选。默认为 location.href
+  owner: 'Alvinsjq',
+  repo: 'Alvinsjq.github.io',
+  oauth: {
+    client_id: 'b108345cd65235055f4a',
+    client_secret: '2faaebf58d2e33a50a022d84c6448d9d9535feda',
+  },
+})
+gitment.render('container')
+</script>
+
+{% endif %}

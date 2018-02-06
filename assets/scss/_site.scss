@@ -6,6 +6,8 @@
    Selection
    ========================================================================== */
 
+
+
 ::-moz-selection { 
 	background-color: lighten($base-color, 65%); 
 	color: $base-color; 
@@ -25,7 +27,6 @@
 /* wrapper */
 .wrap {
 	margin: 0 auto;
-	background-color: blue;
 
 }
 

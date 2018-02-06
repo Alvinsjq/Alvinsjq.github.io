@@ -1,0 +1,310 @@
+<!DOCTYPE html> <html> <head> <meta charset="utf-8"> <meta name="apple-mobile-web-app-capable" content="yes"> <meta http-equiv="X-UA-Compatible" content="IE=edge"> <meta name="viewport" content="width=device-width, initial-scale=1"> <title> MIT6.828 Lab1 Booting a PC Part 3 | Alvin Is </title> <!-- Icons --> <link rel="apple-touch-icon" type=" image/png" sizes="144x144" href="assets/images/webicon.png"> <link rel="icon" type=" image/png" href="/assets/images/webicon_32.png"> <link rel="shortcut icon" type=" image/png" href="/assets/images/webicon_32.png"> <meta name="description" content=" 深入JOS的内核细节 "> <meta name="keywords" content="OS,kernel"> <meta name="HandheldFriendly" content="True"> <meta name="MobileOptimized" content="320"> <!-- Social: Facebook / Open Graph --> <meta property="og:type" content="article"> <meta property="article:author" content="Alvinsjq"> <meta property="article:section" content=""> <meta property="article:tag" content="OS,kernel"> <meta property="article:published_time" content="2017-02-15 14:40:22 +0800"> <meta property="og:url" content="http://alvinsjq.github.io/2017/lab1hw2-homework/"> <meta property="og:title" content=" MIT6.828 Lab1 Booting a PC Part 3 | Alvin Is "> <meta property="og:image" content="http://alvinsjq.github.io"> <meta property="og:description" content=" 深入JOS的内核细节 "> <meta property="og:site_name" content="Alvinsjq"> <meta property="og:locale" content="en_US"> <!-- Social: Twitter --> <meta name="twitter:card" content="summary_large_image"> <meta name="twitter:site" content="@Alvin_sjq"> <meta name="twitter:title" content=" MIT6.828 Lab1 Booting a PC Part 3 | Alvin Is "> <meta name="twitter:description" content=" 深入JOS的内核细节 "> <meta name="twitter:image:src" content="http://alvinsjq.github.io"> <!-- Social: Google+ / Schema.org --> <meta itemprop="name" content=" MIT6.828 Lab1 Booting a PC Part 3 | Alvin Is "> <meta itemprop="description" content=" 深入JOS的内核细节 "> <meta itemprop="image" content="http://alvinsjq.github.io"> <!-- rel prev and next --> <link rel="stylesheet" href="/assets/css/main.css"> <link rel="stylesheet" href="/assets/css/font-awesome.min.css"> <!-- Canonical link tag --> <link rel="canonical" href="http://alvinsjq.github.io/2017/lab1hw2-homework/"> <link rel="alternate" type="application/rss+xml" title="Alvin Is" href="http://alvinsjq.github.io/feed.xml"> <script type="text/javascript"> var disqus_shortname = 'alvin-is'; var _gaq = _gaq || []; _gaq.push(['_setAccount', '']); _gaq.push(['_trackPageview']); (function() { var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true; ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js'; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s); })(); </script> <script src="https://code.jquery.com/jquery-3.2.0.min.js"></script> <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.1.js"></script> <script>AV.initialize("OfIL1RlM4M4n30dWx3wXlEIz-gzGzoHsz", "LlDtB3Xu9be1655lnGQdPedO");</script> <script> function showHitCount(Counter) { var query = new AV.Query(Counter); var entries = []; var $visitors = $(".leancloud_visitors"); $visitors.each(function () { entries.push( $(this).attr("id").trim() ); }); query.containedIn('url', entries); query.find() .done(function (results) { var COUNT_CONTAINER_REF = '.leancloud-visitors-count'; if (results.length === 0) { $visitors.find(COUNT_CONTAINER_REF).text(0); return; } for (var i = 0; i < results.length; i++) { var item = results[i]; var url = item.get('url'); var hits = item.get('hits'); var element = document.getElementById(url); $(element).find(COUNT_CONTAINER_REF).text(hits); } for(var i = 0; i < entries.length; i++) { var url = entries[i]; var element = document.getElementById(url); var countSpan = $(element).find(COUNT_CONTAINER_REF); if( countSpan.text() == '') { countSpan.text(0); } } }) .fail(function (object, error) { console.log("Error: " + error.code + " " + error.message); }); } function addCount(Counter) { var $visitors = $(".leancloud_visitors"); var url = $visitors.attr('id').trim(); var title = $visitors.attr('data-flag-title').trim(); var query = new AV.Query(Counter); query.equalTo("url", url); query.find({ success: function(results) { if (results.length > 0) { var counter = results[0]; counter.fetchWhenSave(true); counter.increment("hits"); counter.save(null, { success: function(counter) { var $element = $(document.getElementById(url)); $element.find('.leancloud-visitors-count').text(counter.get('hits')); }, error: function(counter, error) { console.log('Failed to save Visitor num, with error message: ' + error.message); } }); } else { var newcounter = new Counter(); var acl = new AV.ACL(); acl.setPublicReadAccess(true); acl.setPublicWriteAccess(true); newcounter.setACL(acl); newcounter.set("title", title); newcounter.set("url", url); newcounter.set("hits", 1); newcounter.save(null, { success: function(newcounter) { var $element = $(document.getElementById(url)); $element.find('.leancloud-visitors-count').text(newcounter.get('hits')); }, error: function(newcounter, error) { console.log('Failed to create'); } }); } }, error: function(error) { console.log('Error:' + error.code + " " + error.message); } }); } $(function() { var Counter = AV.Object.extend("Counter"); if ($('.leancloud_visitors').length == 1) { addCount(Counter); } else if ($('.post-link').length > 1){ showHitCount(Counter); } }); </script> <script> var _hmt = _hmt || []; (function() { var hm = document.createElement("script"); hm.src = "https://hm.baidu.com/hm.js?011d93aa32b263cf21d7c9a15165b8a0"; var s = document.getElementsByTagName("script")[0]; s.parentNode.insertBefore(hm, s); })(); </script> </head> <body> <main class="wrapper"> <header class="site-header"> <nav class="nav"> <div class="container"> <h1 class="logo"><a href="/">Alvin Is<span></span></a></h1> <ul class="navbar"> <li><a href="/about">About</a></li> <li><a href="/talks">Topics</a></li> <li><a href="/archives">Archives</a></li> <li><a href="/feed.xml" target="_blank"></a></li> </ul> </div> </nav> </header> <article class="post container" itemscope itemtype="http://schema.org/BlogPosting"> <header class="post-header"> <p class="post-meta"><time datetime="2017-02-15T14:40:22+08:00" itemprop="datePublished">Feb 15, 2017</time> <span id="/2017/lab1hw2-homework/" class="leancloud_visitors" data-flag-title="MIT6.828 Lab1 Booting a PC Part 3"> <span class="post-meta-divider">|</span> <span class="post-meta-item-text"> 浏览次数: </span> <span class="leancloud-visitors-count"></span> </span> </p> <h1 class="post-title" itemprop="name headline">MIT6.828 Lab1 Booting a PC Part 3</h1> <script type="text/x-mathjax-config"> MathJax.Hub.Config({ TeX: { equationNumbers: { autoNumber: "all" } } }); </script> <script type="text/x-mathjax-config"> MathJax.Hub.Config({ tex2jax: { inlineMath: [ ['$','$'], ["\\(","\\)"] ], processEscapes: true } }); </script> <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script> </header> <div class="post-content" itemprop="articleBody"> <h2 id="section">实验一大纲</h2> <ul> <li>环境配置</li> <li>第一部分：PC Bootstrap <ul> <li>x86汇编</li> <li>模拟x86</li> <li>PC的物理地址空间</li> <li>ROM BIOS</li> </ul> </li> <li>第二部分：The Boot Loader <ul> <li>加载内核</li> </ul> </li> <li>第三部分：The kernel</li> </ul> <h2 id="the-kernel">第三部分 The kernel</h2> <p>这一部分，我们会更加深入JOS的内核细节，内核代码先有一些汇编语言和一些设置以便C代码能正确地执行。</p> <p><strong>Using virtual memory to work around position dependence</strong></p> <p>当观察上面boot loader的链接地址和加载地址时发现它们都完美地匹配，但是在内核的链接地址和加载地址上就会有很悬殊的差异。回顾它们确保都明白我们说的。（链接内存要比boot loader要复杂得多）。</p> <p>操作系统的内核经常有可能被连接和运行到非常高的虚拟地址上，比如0xf0100000，为了能够给用户级程序让出处理器虚拟地址空间。在下次实验中这个过程会很清晰。</p> <p>然而大多数机器在0xf0100000上不会有物理内存，因此我们不能将内核储存在这儿。那么怎样储存呢？<br /> 我们会用处理器的内存管理硬件去map虚拟地址0xf0100000（链接地址，内核代码预计去运行的）到物理地址0x00100000（这儿，bootloader将内核加载到物理内存）。这样的话，即使内核的虚拟地址足够高得来给用户进程腾出大量的地址空间，它还是会加载在PC RAM的1MB处的物理内存。该方法需要PC有至少几M的物理内存（以便物理地址0x00100000有效），在1990后的PC都是可以实现的。</p> <p>在下一个实验中，我们会将整个地下的256MB的PC物理地址空间（从0x00000000到0x0fffffff）分别映射到虚拟地址0xf0000000到0xffffffff。这样一看就知道为什么JOS只能用最开始的256MB的物理内存了。</p> <p>这里我们仅映射4MB的物理内存，这也足够我们运行了。我们利用在kern/entrypgdir.c的手写的静态初始的页目录和页表。直到kern/entry.S设置了CR0_PG 标志，内存引用就视为物理地址（严格说来，它们是线性地址，但是boot／boot.S设置了一个identity来映射线性地址到物理地址并且我们也不会去改变）。一旦CR0_PG被设置好，内存引用虚拟地址，这虚拟地址是由虚拟地址硬件到物理地址的。entry_pgdir将虚拟地址0xf0000000到0xf0400000 转到物理地址0x00000000到0x00400000, 同时虚拟地址0x00000000到0x00400000到物理地址0x00000000到0x00400000。任何不在这两个范围的虚拟地址将会造成硬件异常，将会造成QEMU出错和退出。</p> <blockquote> <p>练习7:使用Qemu和GDB去追踪JOS内核文件，并且停止在movl %eax, %cr0指令前。此时看一下内存地址0x00100000以及0xf0100000处分别存放着什么。然后使用stepi命令执行完这条命令，再次检查这两个地址处的内容。确保你真的理解了发生了什么。如果这条指令movl %eax, %cr0并没有执行，而是被跳过，那么第一个会出现问题的指令是什么？我们可以通过把entry.S的这条语句加上注释来验证一下。</p> </blockquote> <p>那么设置断点0x100000c，然后<code class="highlighter-rouge">si</code>到出现<code class="highlighter-rouge">movl %eax, %cr0</code>,查看内存得到发现：在这条指令发生之前，两地址值不一样，再次<code class="highlighter-rouge">si</code>两处到值是一样的。<br /> 这说明存放在0xf0100000处的内容，已经被映射到0x00100000处了。</p> <p><img src="https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_exe7.PNG?raw=true" alt="friends" /></p> <p><strong>格式化打印到控制台</strong></p> <p>事实上，对于C语言到printf(),我们依旧需要在操作系统中去实现这样的I/O。</p> <p>通读kern/printf.c, lib/printfmt.c 和 kern/console.c文件，确保能理解它们的关系。<br /> 在后面的实验中会知道为什么printfmt.c文件单独在lib文件夹下。</p> <h4 id="section-1">代码分析</h4> <p>在print.c文件就像按照注释说的一样：是内核输出到控制台cprintf的简单的实现，该实现基于printfmt和内核控制台的cputchar。因此这个文件依赖于console.c和printfmt.c这两个文件。</p> <p><em>那么就先看一下console.c的cputchar函数：</em></p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">//高级别控制台I/O，readline和cprintf用到的
+</span><span class="kt">void</span>
+<span class="nf">cputchar</span><span class="p">(</span><span class="kt">int</span> <span class="n">c</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">cons_putc</span><span class="p">(</span><span class="n">c</span><span class="p">);</span> 
+<span class="p">}</span>
+</code></pre></div> <p>调用的cons_putc函数为：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">//输出一个字符到控制台
+</span><span class="k">static</span> <span class="kt">void</span>
+<span class="nf">cons_putc</span><span class="p">(</span><span class="kt">int</span> <span class="n">c</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">serial_putc</span><span class="p">(</span><span class="n">c</span><span class="p">);</span>
+    <span class="n">lpt_putc</span><span class="p">(</span><span class="n">c</span><span class="p">);</span>
+    <span class="n">cga_putc</span><span class="p">(</span><span class="n">c</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <p>首先是serial_putc，可以看下面的代码，发现这是在控制端口0x3F8，inb后面的值计算出来为0x3FD，out后面的值计算出来是0x3F8。总得来说就是通过inb指令判断缓冲是否为空，而outb就是将要发送的数据发送到到端口0x3F8，这样该程序就将一个字符传给端口0x3F8，具体该端口的相关概念可以移步<a href="http://bochs.sourceforge.net/techspec/PORTS.LST">这里</a>:</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="cp">#define COM1        0x3F8
+#define COM_TX      0   // Out: Transmit buffer (DLAB=0)
+#define COM_LSR     5   // In:  Line Status Register
+#define   COM_LSR_TXRDY 0x20    //   Transmit buffer avail
+</span>
+<span class="k">static</span> <span class="kt">void</span>
+<span class="nf">serial_putc</span><span class="p">(</span><span class="kt">int</span> <span class="n">c</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="n">i</span><span class="p">;</span>
+
+    <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+         <span class="o">!</span><span class="p">(</span><span class="n">inb</span><span class="p">(</span><span class="n">COM1</span> <span class="o">+</span> <span class="n">COM_LSR</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">COM_LSR_TXRDY</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">12800</span><span class="p">;</span>
+         <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+        <span class="n">delay</span><span class="p">();</span>
+
+    <span class="n">outb</span><span class="p">(</span><span class="n">COM1</span> <span class="o">+</span> <span class="n">COM_TX</span><span class="p">,</span> <span class="n">c</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <p> 接着是lpt_putc和cga_putc了，它们的作用主要是将字符输出给并行端口，最后将它们输出到显示屏上去。</p> <p><em>然后就是printfmt.c的代码了，重点关注vprintfmt函数</em></p> <p>printfmt.c文件被许多printf风格的函数所调用，例如rintf, sprintf, fprintf等，并且这个代码可以用时给内核与用户程序所使用。<br /> 那么现在就看下vprintfmt函数：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// 格式化和输出一个字符串的主要函数。
+</span><span class="kt">void</span>
+<span class="nf">vprintfmt</span><span class="p">(</span><span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">putch</span><span class="p">)(</span><span class="kt">int</span><span class="p">,</span> <span class="kt">void</span><span class="o">*</span><span class="p">),</span> <span class="kt">void</span> <span class="o">*</span><span class="n">putdat</span><span class="p">,</span> <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">fmt</span><span class="p">,</span> <span class="kt">va_list</span> <span class="n">ap</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">register</span> <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">p</span><span class="p">;</span>
+    <span class="k">register</span> <span class="kt">int</span> <span class="n">ch</span><span class="p">,</span> <span class="n">err</span><span class="p">;</span>
+    <span class="kt">unsigned</span> <span class="kt">long</span> <span class="kt">long</span> <span class="n">num</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">base</span><span class="p">,</span> <span class="n">lflag</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">precision</span><span class="p">,</span> <span class="n">altflag</span><span class="p">;</span>
+    <span class="kt">char</span> <span class="n">padc</span><span class="p">;</span>
+
+    <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">while</span> <span class="p">((</span><span class="n">ch</span> <span class="o">=</span> <span class="o">*</span><span class="p">(</span><span class="kt">unsigned</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">fmt</span><span class="o">++</span><span class="p">)</span> <span class="o">!=</span> <span class="sc">'%'</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">ch</span> <span class="o">==</span> <span class="sc">'\0'</span><span class="p">)</span>
+                <span class="k">return</span><span class="p">;</span>
+            <span class="n">putch</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+        <span class="p">}</span>
+
+        <span class="c1">// Process a %-escape sequence
+</span>        <span class="n">padc</span> <span class="o">=</span> <span class="sc">' '</span><span class="p">;</span>
+        <span class="n">width</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="n">precision</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+        <span class="n">lflag</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">altflag</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="nl">reswitch:</span>
+        <span class="k">switch</span> <span class="p">(</span><span class="n">ch</span> <span class="o">=</span> <span class="o">*</span><span class="p">(</span><span class="kt">unsigned</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">fmt</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+
+        <span class="c1">// flag to pad on the right
+</span>        <span class="k">case</span> <span class="sc">'-'</span><span class="p">:</span>
+            <span class="n">padc</span> <span class="o">=</span> <span class="sc">'-'</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">reswitch</span><span class="p">;</span>
+
+        <span class="c1">// flag to pad with 0's instead of spaces
+</span>        <span class="k">case</span> <span class="sc">'0'</span><span class="p">:</span>
+            <span class="n">padc</span> <span class="o">=</span> <span class="sc">'0'</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">reswitch</span><span class="p">;</span>
+
+        <span class="c1">// width field
+</span>        <span class="k">case</span> <span class="sc">'1'</span><span class="p">:</span>
+        <span class="k">case</span> <span class="sc">'2'</span><span class="p">:</span>
+        <span class="k">case</span> <span class="sc">'3'</span><span class="p">:</span>
+        <span class="k">case</span> <span class="sc">'4'</span><span class="p">:</span>
+        <span class="k">case</span> <span class="sc">'5'</span><span class="p">:</span>
+        <span class="k">case</span> <span class="sc">'6'</span><span class="p">:</span>
+        <span class="k">case</span> <span class="sc">'7'</span><span class="p">:</span>
+        <span class="k">case</span> <span class="sc">'8'</span><span class="p">:</span>
+        <span class="k">case</span> <span class="sc">'9'</span><span class="p">:</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">precision</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="p">;</span> <span class="o">++</span><span class="n">fmt</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">precision</span> <span class="o">=</span> <span class="n">precision</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">+</span> <span class="n">ch</span> <span class="o">-</span> <span class="sc">'0'</span><span class="p">;</span>
+                <span class="n">ch</span> <span class="o">=</span> <span class="o">*</span><span class="n">fmt</span><span class="p">;</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">ch</span> <span class="o">&lt;</span> <span class="sc">'0'</span> <span class="o">||</span> <span class="n">ch</span> <span class="o">&gt;</span> <span class="sc">'9'</span><span class="p">)</span>
+                    <span class="k">break</span><span class="p">;</span>
+            <span class="p">}</span>
+            <span class="k">goto</span> <span class="n">process_precision</span><span class="p">;</span>
+
+        <span class="k">case</span> <span class="sc">'*'</span><span class="p">:</span>
+            <span class="n">precision</span> <span class="o">=</span> <span class="n">va_arg</span><span class="p">(</span><span class="n">ap</span><span class="p">,</span> <span class="kt">int</span><span class="p">);</span>
+            <span class="k">goto</span> <span class="n">process_precision</span><span class="p">;</span>
+
+        <span class="k">case</span> <span class="sc">'.'</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">width</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="n">width</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">reswitch</span><span class="p">;</span>
+
+        <span class="k">case</span> <span class="sc">'#'</span><span class="p">:</span>
+            <span class="n">altflag</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">reswitch</span><span class="p">;</span>
+
+        <span class="nl">process_precision:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">width</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="n">width</span> <span class="o">=</span> <span class="n">precision</span><span class="p">,</span> <span class="n">precision</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">reswitch</span><span class="p">;</span>
+
+        <span class="c1">// long flag (doubled for long long)
+</span>        <span class="k">case</span> <span class="sc">'l'</span><span class="p">:</span>
+            <span class="n">lflag</span><span class="o">++</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">reswitch</span><span class="p">;</span>
+
+        <span class="c1">// character
+</span>        <span class="k">case</span> <span class="sc">'c'</span><span class="p">:</span>
+            <span class="n">putch</span><span class="p">(</span><span class="n">va_arg</span><span class="p">(</span><span class="n">ap</span><span class="p">,</span> <span class="kt">int</span><span class="p">),</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+
+        <span class="c1">// error message
+</span>        <span class="k">case</span> <span class="sc">'e'</span><span class="p">:</span>
+            <span class="n">err</span> <span class="o">=</span> <span class="n">va_arg</span><span class="p">(</span><span class="n">ap</span><span class="p">,</span> <span class="kt">int</span><span class="p">);</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">err</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="n">err</span> <span class="o">=</span> <span class="o">-</span><span class="n">err</span><span class="p">;</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">err</span> <span class="o">&gt;=</span> <span class="n">MAXERROR</span> <span class="o">||</span> <span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">error_string</span><span class="p">[</span><span class="n">err</span><span class="p">])</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+                <span class="n">printfmt</span><span class="p">(</span><span class="n">putch</span><span class="p">,</span> <span class="n">putdat</span><span class="p">,</span> <span class="s">"error %d"</span><span class="p">,</span> <span class="n">err</span><span class="p">);</span>
+            <span class="k">else</span>
+                <span class="n">printfmt</span><span class="p">(</span><span class="n">putch</span><span class="p">,</span> <span class="n">putdat</span><span class="p">,</span> <span class="s">"%s"</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+
+        <span class="c1">// string
+</span>        <span class="k">case</span> <span class="sc">'s'</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">((</span><span class="n">p</span> <span class="o">=</span> <span class="n">va_arg</span><span class="p">(</span><span class="n">ap</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span><span class="p">))</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="s">"(null)"</span><span class="p">;</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">width</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="n">padc</span> <span class="o">!=</span> <span class="sc">'-'</span><span class="p">)</span>
+                <span class="k">for</span> <span class="p">(</span><span class="n">width</span> <span class="o">-=</span> <span class="n">strnlen</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">precision</span><span class="p">);</span> <span class="n">width</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">;</span> <span class="n">width</span><span class="o">--</span><span class="p">)</span>
+                    <span class="n">putch</span><span class="p">(</span><span class="n">padc</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="k">for</span> <span class="p">(;</span> <span class="p">(</span><span class="n">ch</span> <span class="o">=</span> <span class="o">*</span><span class="n">p</span><span class="o">++</span><span class="p">)</span> <span class="o">!=</span> <span class="sc">'\0'</span> <span class="o">&amp;&amp;</span> <span class="p">(</span><span class="n">precision</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="o">||</span> <span class="o">--</span><span class="n">precision</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">);</span> <span class="n">width</span><span class="o">--</span><span class="p">)</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">altflag</span> <span class="o">&amp;&amp;</span> <span class="p">(</span><span class="n">ch</span> <span class="o">&lt;</span> <span class="sc">' '</span> <span class="o">||</span> <span class="n">ch</span> <span class="o">&gt;</span> <span class="sc">'~'</span><span class="p">))</span>
+                    <span class="n">putch</span><span class="p">(</span><span class="sc">'?'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+                <span class="k">else</span>
+                    <span class="n">putch</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="k">for</span> <span class="p">(;</span> <span class="n">width</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">;</span> <span class="n">width</span><span class="o">--</span><span class="p">)</span>
+                <span class="n">putch</span><span class="p">(</span><span class="sc">' '</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+
+        <span class="c1">// (signed) decimal
+</span>        <span class="k">case</span> <span class="sc">'d'</span><span class="p">:</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="n">getint</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ap</span><span class="p">,</span> <span class="n">lflag</span><span class="p">);</span>
+            <span class="k">if</span> <span class="p">((</span><span class="kt">long</span> <span class="kt">long</span><span class="p">)</span> <span class="n">num</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">putch</span><span class="p">(</span><span class="sc">'-'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+                <span class="n">num</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="kt">long</span> <span class="kt">long</span><span class="p">)</span> <span class="n">num</span><span class="p">;</span>
+            <span class="p">}</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">number</span><span class="p">;</span>
+
+        <span class="c1">// unsigned decimal
+</span>        <span class="k">case</span> <span class="sc">'u'</span><span class="p">:</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="n">getuint</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ap</span><span class="p">,</span> <span class="n">lflag</span><span class="p">);</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">number</span><span class="p">;</span>
+
+        <span class="c1">// (unsigned) octal
+</span>        <span class="k">case</span> <span class="sc">'o'</span><span class="p">:</span>
+            <span class="c1">// Replace this with your code.
+</span>            <span class="n">putch</span><span class="p">(</span><span class="sc">'X'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="n">putch</span><span class="p">(</span><span class="sc">'X'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="n">putch</span><span class="p">(</span><span class="sc">'X'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+
+        <span class="c1">// pointer
+</span>        <span class="k">case</span> <span class="sc">'p'</span><span class="p">:</span>
+            <span class="n">putch</span><span class="p">(</span><span class="sc">'0'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="n">putch</span><span class="p">(</span><span class="sc">'x'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">long</span> <span class="kt">long</span><span class="p">)</span>
+                <span class="p">(</span><span class="kt">uintptr_t</span><span class="p">)</span> <span class="n">va_arg</span><span class="p">(</span><span class="n">ap</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="p">);</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="mi">16</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">number</span><span class="p">;</span>
+
+        <span class="c1">// (unsigned) hexadecimal
+</span>        <span class="k">case</span> <span class="sc">'x'</span><span class="p">:</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="n">getuint</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ap</span><span class="p">,</span> <span class="n">lflag</span><span class="p">);</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="mi">16</span><span class="p">;</span>
+        <span class="nl">number:</span>
+            <span class="n">printnum</span><span class="p">(</span><span class="n">putch</span><span class="p">,</span> <span class="n">putdat</span><span class="p">,</span> <span class="n">num</span><span class="p">,</span> <span class="n">base</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">padc</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+
+        <span class="c1">// escaped '%' character
+</span>        <span class="k">case</span> <span class="sc">'%'</span><span class="p">:</span>
+            <span class="n">putch</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+
+        <span class="c1">// unrecognized escape sequence - just print it literally
+</span>        <span class="nl">default:</span>
+            <span class="n">putch</span><span class="p">(</span><span class="sc">'%'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">fmt</span><span class="o">--</span><span class="p">;</span> <span class="n">fmt</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="sc">'%'</span><span class="p">;</span> <span class="n">fmt</span><span class="o">--</span><span class="p">)</span>
+                <span class="cm">/* do nothing */</span><span class="p">;</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div> <p>上面这个函数，也就是<code class="highlighter-rouge">vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)</code>有四个参数：</p> <ul> <li>void (*putch)(int, void*)<br /> 这是在printf.c文件中的函数，因此这里是个函数指针，如下：</li> </ul> <div class="highlighter-rouge"><pre class="highlight"><code><span class="k">static</span> <span class="kt">void</span>
+<span class="nf">putch</span><span class="p">(</span><span class="kt">int</span> <span class="n">ch</span><span class="p">,</span> <span class="kt">int</span> <span class="o">*</span><span class="n">cnt</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">cputchar</span><span class="p">(</span><span class="n">ch</span><span class="p">);</span>
+    <span class="o">*</span><span class="n">cnt</span><span class="o">++</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div> <p>int代表是想要输出在控制台上的字符，void* 是要输出的地址。</p> <ul> <li> <p>void *putdat<br /> 这表示输入的字符存放的内存地址的指针；</p> </li> <li> <p>const char *fmt<br /> fmt就是格式化的字符串，也就是printf(“string sentence”,..)中的引号里的内容。</p> </li> <li> <p>va_list ap</p> </li> </ul> <p>当在一个fmt中出现多个参数时，就需要ap来完成输出。</p> <p>分析这个函数，其中在while(1)中，下面的循环代码首先输出%之前的字符：</p> <div class="highlighter-rouge"><pre class="highlight"><code>    <span class="k">while</span> <span class="p">((</span><span class="n">ch</span> <span class="o">=</span> <span class="o">*</span><span class="p">(</span><span class="kt">unsigned</span> <span class="kt">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">fmt</span><span class="o">++</span><span class="p">)</span> <span class="o">!=</span> <span class="sc">'%'</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">ch</span> <span class="o">==</span> <span class="sc">'\0'</span><span class="p">)</span>
+                <span class="k">return</span><span class="p">;</span>
+            <span class="n">putch</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+        <span class="p">}</span>
+</code></pre></div> <p>之后的代码就处理格式化，例如%d、%c、%u等。</p> <p>那么最后看一下printf.c的代码，重点看cprintf函数：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">cprintf</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">fmt</span><span class="p">,</span> <span class="p">...)</span>
+<span class="p">{</span>
+    <span class="kt">va_list</span> <span class="n">ap</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">cnt</span><span class="p">;</span>
+
+    <span class="n">va_start</span><span class="p">(</span><span class="n">ap</span><span class="p">,</span> <span class="n">fmt</span><span class="p">);</span>
+    <span class="n">cnt</span> <span class="o">=</span> <span class="n">vcprintf</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">ap</span><span class="p">);</span>
+    <span class="n">va_end</span><span class="p">(</span><span class="n">ap</span><span class="p">);</span>
+
+    <span class="k">return</span> <span class="n">cnt</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div> <p>这个就是类似于printf的输出函数，关于va_start、va_end、va_list可以看<a href="http://blog.csdn.net/edonlii/article/details/8497704">这里</a>。</p> <p>有了这些分析就可以做练习和回答问题了。</p> <blockquote> <p>练习8:我们省略了一小段代码–如果是要用符号“%o”输出八进制数的话，这段代码是必须的。找到并填补这段代码。</p> </blockquote> <p>可以参照16进制的格式化方法，对8进制的代码进行修改，将其中的代码：</p> <div class="highlighter-rouge"><pre class="highlight"><code>            <span class="c1">// (unsigned) hexadecimal
+</span><span class="k">case</span> <span class="sc">'x'</span><span class="p">:</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="n">getuint</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ap</span><span class="p">,</span> <span class="n">lflag</span><span class="p">);</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="mi">16</span><span class="p">;</span>
+        <span class="n">number</span><span class="o">:</span>
+            <span class="n">printnum</span><span class="p">(</span><span class="n">putch</span><span class="p">,</span> <span class="n">putdat</span><span class="p">,</span> <span class="n">num</span><span class="p">,</span> <span class="n">base</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">padc</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+
+<span class="k">case</span> <span class="sc">'o'</span><span class="p">:</span>
+            <span class="c1">// Replace this with your code.
+</span>            <span class="n">putch</span><span class="p">(</span><span class="sc">'X'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="n">putch</span><span class="p">(</span><span class="sc">'X'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="n">putch</span><span class="p">(</span><span class="sc">'X'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+</code></pre></div> <p>替换为：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="k">case</span> <span class="sc">'o'</span><span class="p">:</span>
+            <span class="c1">// After replace the code.
+</span>            <span class="n">num</span> <span class="o">=</span> <span class="n">getuint</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ap</span><span class="p">,</span> <span class="n">lflag</span><span class="p">);</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="mi">8</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">number</span><span class="p">;</span>
+            <span class="k">break</span><span class="p">;</span>
+</code></pre></div> <p>回答下面的问题：</p> <ol> <li> <p>解释printf.c 和 console.c之间的接口，特别地，console.c 文件输出的是什么函数？这个函数是怎样被printf.c利用的？<br /> A: 根据代码，很容易看出console.c中的cputchar函数被printf.c中的putch函数所调用。</p> </li> <li> <p>解释下面来自console.c的代码</p> </li> </ol> <div class="highlighter-rouge"><pre class="highlight"><code><span class="mi">1</span>      <span class="nf">if</span> <span class="p">(</span><span class="n">crt_pos</span> <span class="o">&gt;=</span> <span class="n">CRT_SIZE</span><span class="p">)</span> <span class="p">{</span>
+<span class="mi">2</span>              <span class="kt">int</span> <span class="n">i</span><span class="p">;</span>
+<span class="mi">3</span>              <span class="n">memmove</span><span class="p">(</span><span class="n">crt_buf</span><span class="p">,</span> <span class="n">crt_buf</span> <span class="o">+</span> <span class="n">CRT_COLS</span><span class="p">,</span> <span class="p">(</span><span class="n">CRT_SIZE</span> <span class="o">-</span> <span class="n">CRT_COLS</span><span class="p">)</span> <span class="o">*</span>               <span class="k">sizeof</span><span class="p">(</span><span class="kt">uint16_t</span><span class="p">));</span>
+<span class="mi">4</span>              <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="n">CRT_SIZE</span> <span class="o">-</span> <span class="n">CRT_COLS</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">CRT_SIZE</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+<span class="mi">5</span>                      <span class="n">crt_buf</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mh">0x0700</span> <span class="o">|</span> <span class="sc">' '</span><span class="p">;</span>
+<span class="mi">6</span>              <span class="n">crt_pos</span> <span class="o">-=</span> <span class="n">CRT_COLS</span><span class="p">;</span>
+<span class="mi">7</span>      <span class="p">}</span>
+</code></pre></div> <p>A：这段代码是在cga_putc(int c)函数中的，属于向显示器输出字符。具体的就是将目前所显示的字符整体向上移一行以便显示出下一行的字符内容。</p> <p>crt_buf:字符数组缓冲区，存放的自然是要显示到控制台上的字符；<br /> crt_pos:表示当前最后一个字符显示在屏幕上的位置；</p> <p>早期计算机控制台最多显示25行X80列的字符，因此要想在控制台上显示字符，就得指定要显示的位置，以及将显示的字符告诉cga。<br /> CRT_SIZE=80*25,那么这个if语句就是当下一个要显示的字符超过屏幕所能显示的情况下，也就是屏幕所能显示的字符满时，则需要将整体向上移动一行，for循环干的就是将接下来的一行编程空格行，最后在将crt_pos的值修改一下。</p> <ol> <li>下面的问题也行需要查看课时2的讲义，讲义中介绍了x86中GCC的调用习惯。</li> </ol> <p>一步一步追踪以下代码的执行：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">int</span> <span class="n">x</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+<span class="n">cprintf</span><span class="p">(</span><span class="s">"x %d, y %x, z %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">);</span>
+</code></pre></div> <p><em>在cprint（）的调用中，fmt指向什么？ap指向什么？</em></p> <p>有上面对该函数的分析容易知道，fmt显示的就是<code class="highlighter-rouge">x %d, y %x, z %d\n</code>，而ap是va_list类型，因此是可变参数个数类型，显然ap指向的是所有输出参数的集合。</p> <p><em>按照执行的顺序列出所有对cons_putc, va_arg，和vcprintf的调用。对于cons_putc，列出它所有的输入参数。对于va_arg列出ap在执行完这个函数后的和执行之前的变化。对于vcprintf列出它的两个输入参数的值。</em></p> <p>整个过程大致为vprintfmt函数分析fmt字符串，当x %d时，它就会选择如下处理方法：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// (signed) decimal
+</span>        <span class="k">case</span> <span class="sc">'d'</span><span class="p">:</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="n">getint</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ap</span><span class="p">,</span> <span class="n">lflag</span><span class="p">);</span>
+            <span class="k">if</span> <span class="p">((</span><span class="kt">long</span> <span class="kt">long</span><span class="p">)</span> <span class="n">num</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">putch</span><span class="p">(</span><span class="sc">'-'</span><span class="p">,</span> <span class="n">putdat</span><span class="p">);</span>
+                <span class="n">num</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="kt">long</span> <span class="kt">long</span><span class="p">)</span> <span class="n">num</span><span class="p">;</span>
+            <span class="p">}</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">number</span><span class="p">;</span>
+</code></pre></div> <p>其中会接触到一个getint函数，它主要就是为了从ap列表中得到相应类型的参数：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="k">static</span> <span class="kt">long</span> <span class="kt">long</span>
+<span class="nf">getint</span><span class="p">(</span><span class="kt">va_list</span> <span class="o">*</span><span class="n">ap</span><span class="p">,</span> <span class="kt">int</span> <span class="n">lflag</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">lflag</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">va_arg</span><span class="p">(</span><span class="o">*</span><span class="n">ap</span><span class="p">,</span> <span class="kt">long</span> <span class="kt">long</span><span class="p">);</span>
+    <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">lflag</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">va_arg</span><span class="p">(</span><span class="o">*</span><span class="n">ap</span><span class="p">,</span> <span class="kt">long</span><span class="p">);</span>
+    <span class="k">else</span>
+        <span class="k">return</span> <span class="n">va_arg</span><span class="p">(</span><span class="o">*</span><span class="n">ap</span><span class="p">,</span> <span class="kt">int</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <p>这样就调用到va_arg方法，在x %d下会返回第三个return，调用ap中包括的三个参数的内容1，3，4。调用一段时间ap中还有y，z的内容。这样case d下的num就是1。之后再挑战到number：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="nl">number:</span>
+            <span class="n">printnum</span><span class="p">(</span><span class="n">putch</span><span class="p">,</span> <span class="n">putdat</span><span class="p">,</span> <span class="n">num</span><span class="p">,</span> <span class="n">base</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">padc</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+</code></pre></div> <p>查看代码，cons_putc的参数就是要输出到控制台上的字符c；<br /> vcprintf的参数时fmt和ap；<br /> 可以在monitor.c文件中添加这段代码，实现在控制台上显示字符。</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">monitor</span><span class="p">(</span><span class="k">struct</span> <span class="n">Trapframe</span> <span class="o">*</span><span class="n">tf</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">char</span> <span class="o">*</span><span class="n">buf</span><span class="p">;</span>
+
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"Welcome to the JOS kernel monitor!</span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"Type 'help' for a list of commands.</span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+
+    <span class="kt">int</span> <span class="n">x</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>                        <span class="o">==&gt;</span> <span class="n">added</span>
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"x %d, y %x, z %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">);</span>         <span class="o">==&gt;</span> <span class="n">output</span>
+
+    <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">buf</span> <span class="o">=</span> <span class="n">readline</span><span class="p">(</span><span class="s">"K&gt; "</span><span class="p">);</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">buf</span> <span class="o">!=</span> <span class="nb">NULL</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">runcmd</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="n">tf</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="k">break</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div> <ol> <li>运行一下代码：</li> </ol> <div class="highlighter-rouge"><pre class="highlight"><code>    <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mh">0x00646c72</span><span class="p">;</span>
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"H%x Wo%s"</span><span class="p">,</span> <span class="mi">57616</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">i</span><span class="p">);</span>
+</code></pre></div> <p>输出的是什么？一步步解释一下为什么有这样的输出？</p> <p>通过修改monitor.c文件可以直接在控制台上观察整个结果：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">monitor</span><span class="p">(</span><span class="k">struct</span> <span class="n">Trapframe</span> <span class="o">*</span><span class="n">tf</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">char</span> <span class="o">*</span><span class="n">buf</span><span class="p">;</span>
+
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"Welcome to the JOS kernel monitor!</span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"Type 'help' for a list of commands.</span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+
+    <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mh">0x00646c72</span><span class="p">;</span>                        <span class="o">==&gt;</span> <span class="n">added</span>
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"H%x Wo%s"</span><span class="p">,</span> <span class="mi">57616</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">i</span><span class="p">);</span>                     <span class="o">==&gt;</span> <span class="n">output</span>
+
+    <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">buf</span> <span class="o">=</span> <span class="n">readline</span><span class="p">(</span><span class="s">"K&gt; "</span><span class="p">);</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">buf</span> <span class="o">!=</span> <span class="nb">NULL</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">runcmd</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="n">tf</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="k">break</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+</code></pre></div> <p>结果是输出<code class="highlighter-rouge">He110 World</code>。</p> <p>分析：<br /> 57616的十六进制数为0xe110；<br /> i的话就视为字符串0x00646c72，而%s就能输出r=0x72，l=0x6c，d=0x64。</p> <ol> <li>看下面的代码，在’y=’后面会输出什么？为什么会这样？</li> </ol> <div class="highlighter-rouge"><pre class="highlight"><code><span class="n">cprintf</span><span class="p">(</span><span class="s">"x=%d y=%d"</span><span class="p">,</span> <span class="mi">3</span><span class="p">);</span>
+</code></pre></div> <p>只能得到 <code class="highlighter-rouge">x=3，y=另一个值</code>。</p> <ol> <li>我们说GCC改变了它的调用规则以便它在栈上push声明序列下的argument，以至于最后一个argument最后push。你怎样改变cprintf或者它的接口，以便它依旧可能有变量的argument来通过它？</li> </ol> <blockquote> <p><a href="https://github.com/Clann24/jos/tree/master/lab1">Push an integer after the last argument indicating the number of arguments.</a></p> </blockquote> <aside class="share"> <p>If you liked this article and think others should read it, please share it on <a href="http://twitter.com/share?text=MIT6.828 Lab1 Booting a PC Part 3&amp;url=http://alvinsjq.github.io/2017/lab1hw2-homework/&amp;via=Alvin_sjq" onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">Twitter <i class="fa fa-twitter" aria-hidden="true" style="color:#00aced"></i></a>or <a href="https://www.facebook.com/sharer/sharer.php?u=http://alvinsjq.github.io/2017/lab1hw2-homework/" onclick="window.open(this.href, 'facebook-share', 'width=550,height=235');return false;">facebook <i class="fa fa-facebook-square" aria-hidden="true" style="color:#3b5998"></i></a>.</p> </aside> </div> <style type="text/css"> .tagged { margin-top: 1rem; } .tagged a { border: 1px solid #ddd; padding: 2px 5px; background: transparent; display: inline-block; color: #999; outline: 0; text-decoration: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; font-size: 70%; } .tagged a:hover { cursor: pointer; border: 1px solid #555; background: #444; color: #fff; } .back { /*text-align: center;*/ text-transform: uppercase; letter-spacing: 1px; } </style> <div class="tagged"> <a href="http://alvinsjq.github.io/tagged#mit6-828"><i class="fa fa-hashtag" aria-hidden="true"></i>MIT6.828</a> <a href="http://alvinsjq.github.io/tagged#operating-system"><i class="fa fa-hashtag" aria-hidden="true"></i>Operating System</a> <a href="http://alvinsjq.github.io/tagged#操作系统"><i class="fa fa-hashtag" aria-hidden="true"></i>操作系统</a> <a href="http://alvinsjq.github.io/tagged#学习历程"><i class="fa fa-hashtag" aria-hidden="true"></i>学习历程</a> <a href="http://alvinsjq.github.io/tagged#kernel"><i class="fa fa-hashtag" aria-hidden="true"></i>kernel</a> </div> <br> <div class="back"><a href="/"><i class="fa fa-chevron-left"></i>Back</a></div> </article> <aside id="comments" class="disqus"> <div class="container"> <div id="gitmentContainer"></div> <link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css"> <script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script> <script> var gitment = new Gitment({ id: '<%= page.title %>', owner: 'Alvinsjq', repo: 'Alvinsjq.github.io', oauth: { client_id: 'b108345cd65235055f4a', client_secret: '2faaebf58d2e33a50a022d84c6448d9d9535feda', }, }); gitment.render('gitmentContainer'); </script> </div> </aside> <footer class="site-footer"> <div class="container"> <small class="block">&copy; 2018 Alvinsjq. All rights reserved.</small> <small><a href="https://github.com/heiswayi/thinkspace">Thanks for <i class="fa fa-heart" aria-hidden="true" style="color:#DD3D36"></i> Thinkspace</a> theme by <a href="http://heiswayi.github.io/">Heiswayi Nrird</a>.</small> <div class="footer-social-links"> <a href="http://alvinsjq.github.io/feed.xml" title="RSS Feed" target="_blank"><i class="fa fa-rss"></i></a> <a href="http://weibo.com/p/1005051719812480/home" title="Weibo" target="_blank"><i class="fa fa-weibo" aria-hidden="true"></i></a> <a href="https://twitter.com/Alvin_sjq" title="Twitter" target="_blank"><i class="fa fa-twitter"></i></a> <a href="https://github.com/Alvinsjq/" title="GitHub Repositories" target="_blank"><i class="fa fa-github-alt"></i></a> <a href="https://www.instagram.com/sj_alvin/" title="Instagram" target="_blank"><i class="fa fa-instagram"></i></a> </div> </div> </footer> </main> </body> </html>

@@ -1,0 +1,340 @@
+<!DOCTYPE html> <html> <head> <meta charset="utf-8"> <meta name="apple-mobile-web-app-capable" content="yes"> <meta http-equiv="X-UA-Compatible" content="IE=edge"> <meta name="viewport" content="width=device-width, initial-scale=1"> <title> MIT6.828 Lab1 Booting a PC Part 2 | Alvin Is </title> <!-- Icons --> <link rel="apple-touch-icon" type=" image/png" sizes="144x144" href="assets/images/webicon.png"> <link rel="icon" type=" image/png" href="/assets/images/webicon_32.png"> <link rel="shortcut icon" type=" image/png" href="/assets/images/webicon_32.png"> <meta name="description" content=" 这是这门课的实验一的第二部分，主要是对BIOS的理解，以及怎样将控制权移交。 "> <meta name="keywords" content="OS"> <meta name="HandheldFriendly" content="True"> <meta name="MobileOptimized" content="320"> <!-- Social: Facebook / Open Graph --> <meta property="og:type" content="article"> <meta property="article:author" content="Alvinsjq"> <meta property="article:section" content=""> <meta property="article:tag" content="OS"> <meta property="article:published_time" content="2017-02-09 21:41:58 +0800"> <meta property="og:url" content="http://alvinsjq.github.io/2017/OS-Lab1-p2/"> <meta property="og:title" content=" MIT6.828 Lab1 Booting a PC Part 2 | Alvin Is "> <meta property="og:image" content="http://alvinsjq.github.io"> <meta property="og:description" content=" 这是这门课的实验一的第二部分，主要是对BIOS的理解，以及怎样将控制权移交。 "> <meta property="og:site_name" content="Alvinsjq"> <meta property="og:locale" content="en_US"> <!-- Social: Twitter --> <meta name="twitter:card" content="summary_large_image"> <meta name="twitter:site" content="@Alvin_sjq"> <meta name="twitter:title" content=" MIT6.828 Lab1 Booting a PC Part 2 | Alvin Is "> <meta name="twitter:description" content=" 这是这门课的实验一的第二部分，主要是对BIOS的理解，以及怎样将控制权移交。 "> <meta name="twitter:image:src" content="http://alvinsjq.github.io"> <!-- Social: Google+ / Schema.org --> <meta itemprop="name" content=" MIT6.828 Lab1 Booting a PC Part 2 | Alvin Is "> <meta itemprop="description" content=" 这是这门课的实验一的第二部分，主要是对BIOS的理解，以及怎样将控制权移交。 "> <meta itemprop="image" content="http://alvinsjq.github.io"> <!-- rel prev and next --> <link rel="stylesheet" href="/assets/css/main.css"> <link rel="stylesheet" href="/assets/css/font-awesome.min.css"> <!-- Canonical link tag --> <link rel="canonical" href="http://alvinsjq.github.io/2017/OS-Lab1-p2/"> <link rel="alternate" type="application/rss+xml" title="Alvin Is" href="http://alvinsjq.github.io/feed.xml"> <script type="text/javascript"> var disqus_shortname = 'alvin-is'; var _gaq = _gaq || []; _gaq.push(['_setAccount', '']); _gaq.push(['_trackPageview']); (function() { var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true; ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js'; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s); })(); </script> <script src="https://code.jquery.com/jquery-3.2.0.min.js"></script> <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.1.js"></script> <script>AV.initialize("OfIL1RlM4M4n30dWx3wXlEIz-gzGzoHsz", "LlDtB3Xu9be1655lnGQdPedO");</script> <script> function showHitCount(Counter) { var query = new AV.Query(Counter); var entries = []; var $visitors = $(".leancloud_visitors"); $visitors.each(function () { entries.push( $(this).attr("id").trim() ); }); query.containedIn('url', entries); query.find() .done(function (results) { var COUNT_CONTAINER_REF = '.leancloud-visitors-count'; if (results.length === 0) { $visitors.find(COUNT_CONTAINER_REF).text(0); return; } for (var i = 0; i < results.length; i++) { var item = results[i]; var url = item.get('url'); var hits = item.get('hits'); var element = document.getElementById(url); $(element).find(COUNT_CONTAINER_REF).text(hits); } for(var i = 0; i < entries.length; i++) { var url = entries[i]; var element = document.getElementById(url); var countSpan = $(element).find(COUNT_CONTAINER_REF); if( countSpan.text() == '') { countSpan.text(0); } } }) .fail(function (object, error) { console.log("Error: " + error.code + " " + error.message); }); } function addCount(Counter) { var $visitors = $(".leancloud_visitors"); var url = $visitors.attr('id').trim(); var title = $visitors.attr('data-flag-title').trim(); var query = new AV.Query(Counter); query.equalTo("url", url); query.find({ success: function(results) { if (results.length > 0) { var counter = results[0]; counter.fetchWhenSave(true); counter.increment("hits"); counter.save(null, { success: function(counter) { var $element = $(document.getElementById(url)); $element.find('.leancloud-visitors-count').text(counter.get('hits')); }, error: function(counter, error) { console.log('Failed to save Visitor num, with error message: ' + error.message); } }); } else { var newcounter = new Counter(); var acl = new AV.ACL(); acl.setPublicReadAccess(true); acl.setPublicWriteAccess(true); newcounter.setACL(acl); newcounter.set("title", title); newcounter.set("url", url); newcounter.set("hits", 1); newcounter.save(null, { success: function(newcounter) { var $element = $(document.getElementById(url)); $element.find('.leancloud-visitors-count').text(newcounter.get('hits')); }, error: function(newcounter, error) { console.log('Failed to create'); } }); } }, error: function(error) { console.log('Error:' + error.code + " " + error.message); } }); } $(function() { var Counter = AV.Object.extend("Counter"); if ($('.leancloud_visitors').length == 1) { addCount(Counter); } else if ($('.post-link').length > 1){ showHitCount(Counter); } }); </script> <script> var _hmt = _hmt || []; (function() { var hm = document.createElement("script"); hm.src = "https://hm.baidu.com/hm.js?011d93aa32b263cf21d7c9a15165b8a0"; var s = document.getElementsByTagName("script")[0]; s.parentNode.insertBefore(hm, s); })(); </script> </head> <body> <main class="wrapper"> <header class="site-header"> <nav class="nav"> <div class="container"> <h1 class="logo"><a href="/">Alvin Is<span></span></a></h1> <ul class="navbar"> <li><a href="/about">About</a></li> <li><a href="/talks">Topics</a></li> <li><a href="/archives">Archives</a></li> <li><a href="/feed.xml" target="_blank"></a></li> </ul> </div> </nav> </header> <article class="post container" itemscope itemtype="http://schema.org/BlogPosting"> <header class="post-header"> <p class="post-meta"><time datetime="2017-02-09T21:41:58+08:00" itemprop="datePublished">Feb 9, 2017</time> <span id="/2017/OS-Lab1-p2/" class="leancloud_visitors" data-flag-title="MIT6.828 Lab1 Booting a PC Part 2"> <span class="post-meta-divider">|</span> <span class="post-meta-item-text"> 浏览次数: </span> <span class="leancloud-visitors-count"></span> </span> </p> <h1 class="post-title" itemprop="name headline">MIT6.828 Lab1 Booting a PC Part 2</h1> <script type="text/x-mathjax-config"> MathJax.Hub.Config({ TeX: { equationNumbers: { autoNumber: "all" } } }); </script> <script type="text/x-mathjax-config"> MathJax.Hub.Config({ tex2jax: { inlineMath: [ ['$','$'], ["\\(","\\)"] ], processEscapes: true } }); </script> <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script> </header> <div class="post-content" itemprop="articleBody"> <h2 id="section">实验一大纲</h2> <ul> <li>环境配置</li> <li>第一部分：PC Bootstrap <ul> <li>x86汇编</li> <li>模拟x86</li> <li>PC的物理地址空间</li> <li>ROM BIOS</li> </ul> </li> <li>第二部分：The Boot Loader <ul> <li>加载内核</li> </ul> </li> <li>第三部分：The kernel</li> </ul> <h2 id="the-boot-loader">第二部分 The Boot Loader</h2> <p>对于PC来说，软盘，硬盘都可以被划分为一个个大小为512字节的区域，叫做扇区。一个扇区是一次磁盘操作的最小粒度。每一次读取或者写入操作都必须是一个或多个扇区。如果一个磁盘是可以被用来启动操作系统的，就把这个磁盘的第一个扇区叫做启动扇区。当BIOS找到一个可以启动的软盘或硬盘后，它就会把这512字节的启动扇区加载到内存地址0x7c00~0x7dff这个区域内。</p> <p>在6.828中用的是传统的硬件启动机制，这就意味着我们的boot loader程序的大小必须小于512字节，boot loader有两个文件组成：<br /> - 汇编源文件boot/boot.S<br /> - C源文件boot/main.c<br /> 需要理解这两个文件到底做了什么。而boot loader主有两个功能：<br /> 1. 它将处理器从实模式切换到32位保护模式，只有在该模式才能够获取到1MB以上的物理地址空间。关于什么是保护模式，请看<a href="https://pdos.csail.mit.edu/6.828/2016/readings/pcasm-book.pdf">它的1.2.7与1.2.8</a>,现在可以先理解为在保护模式中，段地址偏移到物理地址会不一样并且偏移量达到32位而不是16位。<br /> 2. 它可以通过使用x86特定的IO指令，直接访问IDE磁盘设备寄存器，从磁盘中读取内核。关于IDE hard drive controller可见<a href="https://pdos.csail.mit.edu/6.828/2016/reference.html">参考页面</a>。</p> <p>在理解boot loader源文件之后，再看它的反汇编文件 <strong>obj/boot/boot.asm</strong>，它可以方便我们追踪boot loader在GDB中发生了什么。<strong>obj/kern/kernel.asm</strong>包含了JOS内核的反汇编文件，这对调试也很有用。</p> <h4 id="gdb-command">GDB Command</h4> <p>在特定地址设置断点</p> <p><code class="highlighter-rouge">b *0x7c00</code></p> <p>继续执行直到下一个断点（或直到按Ctrl-c）</p> <p><code class="highlighter-rouge">c</code></p> <p>追踪指令<br /> <code class="highlighter-rouge"> si si N </code></p> <blockquote> <p>练习3: 看<a href="https://pdos.csail.mit.edu/6.828/2016/labguide.html">lab tool guide</a>,尤其是GDB命令。<br /> 在地址0x7c00处设置断点，这是boot sector被加载的地方。然后让程序继续运行直到到达这个断点。跟踪 <strong>/boot/boot.S</strong>文件的每一条指令，同时使用boot.S文件和反汇编文件 <strong>obj/boot/boot.asm</strong>。你也可以使用GDB的x/i指令来获取去任意一个机器指令的反汇编指令，把源文件boot.S文件和boot.asm文件以及在GDB反汇编出来的指令进行比较。 <br /> 　　追踪到bootmain()函数中，而且还要具体追踪到readsect()子函数里面。找出和readsect()c语言程序的每一条语句所对应的汇编指令，回到bootmain()，然后找出把内核文件从磁盘读取到内存的那个for循环所对应<strong>开始和结束</strong>的汇编语句。找出当循环结束后会执行哪条语句，在那里设置断点，继续运行到断点，然后运行完所有的剩下的语句。</p> </blockquote> <h4 id="section-1">进行实验</h4> <h6 id="gdb-command-1">GDB Command</h6> <p>在特定地址设置断点</p> <p><code class="highlighter-rouge">b *0x7c00</code></p> <p>继续执行直到下一个断点（或直到按Ctrl-c）</p> <p><code class="highlighter-rouge">c</code></p> <p>追踪指令</p> <div class="highlighter-rouge"><pre class="highlight"><code>si 
+
+si N
+</code></pre></div> <h5 id="section-2">关键步骤</h5> <ol> <li>打开两个终端，到lab下分别运行<code class="highlighter-rouge">make qemu-gdb</code>和<code class="highlighter-rouge">make gdb</code>,在gdb下设置断点<code class="highlighter-rouge">b *0x7c00</code>并运行至断点位置 <code class="highlighter-rouge">c</code>。</li> <li> <p>发现断点处的指令就是文件<strong>lab／boot/boot.S</strong>中的<code class="highlighter-rouge">cli</code>。</p> </li> <li>接着查看一下完整boot.S和boot.asm代码</li> </ol> <div class="highlighter-rouge"><pre class="highlight"><code><span class="cp">#include &lt;inc/mmu.h&gt;
+</span>
+<span class="cp">#该文件启动CPU，切换到32-bit模式，进入C。
+#在地址0x7c00开始在实模式下（%cs=0 %ip=7c00）运行，
+#BIOS将硬盘的第一个扇区载入内存。
+</span>
+<span class="p">.</span><span class="n">set</span> <span class="n">PROT_MODE_CSEG</span><span class="p">,</span> <span class="mh">0x8</span>         <span class="err">#</span> <span class="n">kernel</span> <span class="n">code</span> <span class="n">segment</span> <span class="n">selector</span>
+<span class="p">.</span><span class="n">set</span> <span class="n">PROT_MODE_DSEG</span><span class="p">,</span> <span class="mh">0x10</span>        <span class="err">#</span> <span class="n">kernel</span> <span class="n">data</span> <span class="n">segment</span> <span class="n">selector</span>
+<span class="p">.</span><span class="n">set</span> <span class="n">CR0_PE_ON</span><span class="p">,</span>      <span class="mh">0x1</span>         <span class="err">#</span> <span class="n">protected</span> <span class="n">mode</span> <span class="n">enable</span> <span class="n">flag</span>
+
+<span class="p">.</span><span class="n">globl</span> <span class="n">start</span>
+<span class="n">start</span><span class="o">:</span>
+  <span class="p">.</span><span class="n">code16</span>                     <span class="err">#</span> <span class="mi">16</span><span class="o">-</span><span class="n">bit</span><span class="err">模式下的汇编</span>
+  <span class="n">cli</span>                         <span class="err">#</span> <span class="err">中断标志位置</span><span class="mi">0</span>
+  <span class="n">cld</span>                         <span class="err">#</span> <span class="err">方向标志位置</span><span class="mi">0</span><span class="err">，串操作指令递增</span>
+
+  <span class="cp"># 设置重要的段寄存器(DS, ES, SS).
+</span>  <span class="n">xorw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span><span class="o">%</span><span class="n">ax</span>             <span class="err">#</span> <span class="err">异或运算，清零</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span><span class="o">%</span><span class="n">ds</span>             <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">Data</span> <span class="n">Segment</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span><span class="o">%</span><span class="n">es</span>             <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">Extra</span> <span class="n">Segment</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span><span class="o">%</span><span class="n">ss</span>             <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">Stack</span> <span class="n">Segment</span>
+
+  <span class="cp"># 适应 A20:
+</span>  <span class="cp"># 为了与早期PC向后兼容，地址总线20低，以至于高于1MB的会卷回到0。
+</span>  <span class="cp"># 下面的代码就是解决的这个。
+</span><span class="n">seta20</span><span class="p">.</span><span class="mi">1</span><span class="o">:</span>
+  <span class="n">inb</span>     <span class="err">$</span><span class="mh">0x64</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>               <span class="err">#</span> <span class="err">等到不忙时</span>
+  <span class="n">testb</span>   <span class="err">$</span><span class="mh">0x2</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>
+  <span class="n">jnz</span>     <span class="n">seta20</span><span class="p">.</span><span class="mi">1</span>
+
+  <span class="n">movb</span>    <span class="err">$</span><span class="mh">0xd1</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>               <span class="err">#</span> <span class="mh">0xd1</span> <span class="o">-&gt;</span> <span class="err">端口</span> <span class="mh">0x64</span>
+  <span class="n">outb</span>    <span class="o">%</span><span class="n">al</span><span class="p">,</span><span class="err">$</span><span class="mh">0x64</span>
+
+<span class="n">seta20</span><span class="p">.</span><span class="mi">2</span><span class="o">:</span>
+  <span class="n">inb</span>     <span class="err">$</span><span class="mh">0x64</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>               <span class="err">#</span> <span class="n">Wait</span> <span class="k">for</span> <span class="n">not</span> <span class="n">busy</span>
+  <span class="n">testb</span>   <span class="err">$</span><span class="mh">0x2</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>
+  <span class="n">jnz</span>     <span class="n">seta20</span><span class="p">.</span><span class="mi">2</span>
+
+  <span class="n">movb</span>    <span class="err">$</span><span class="mh">0xdf</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>               <span class="err">#</span> <span class="mh">0xdf</span> <span class="o">-&gt;</span> <span class="err">端口</span> <span class="mh">0x60</span>
+  <span class="n">outb</span>    <span class="o">%</span><span class="n">al</span><span class="p">,</span><span class="err">$</span><span class="mh">0x60</span>
+
+  <span class="cp"># 从实模式切换到保护模式，用一个bootstrap GDT和段translation，使得
+</span>  <span class="cp"># 虚拟地址和物理地址时等同的，这样有效的内存图就不会在切换期间被改变。
+</span>  <span class="n">lgdt</span>    <span class="n">gdtdesc</span>
+  <span class="n">movl</span>    <span class="o">%</span><span class="n">cr0</span><span class="p">,</span> <span class="o">%</span><span class="n">eax</span>
+  <span class="n">orl</span>     <span class="err">$</span><span class="n">CR0_PE_ON</span><span class="p">,</span> <span class="o">%</span><span class="n">eax</span>
+  <span class="n">movl</span>    <span class="o">%</span><span class="n">eax</span><span class="p">,</span> <span class="o">%</span><span class="n">cr0</span>
+  
+  <span class="cp"># 跳到下一条指令，但是在32-bit代码段中.
+</span>  <span class="cp"># 将处理器切换为32-bit模式
+</span>  <span class="n">ljmp</span>    <span class="err">$</span><span class="n">PROT_MODE_CSEG</span><span class="p">,</span> <span class="err">$</span><span class="n">protcseg</span>
+
+  <span class="p">.</span><span class="n">code32</span>                     <span class="err">#</span> <span class="mi">32</span><span class="o">-</span><span class="n">bit</span><span class="err">模式下汇编</span>
+<span class="n">protcseg</span><span class="o">:</span>
+  <span class="cp"># 设置保护模式下段寄存器
+</span>  <span class="n">movw</span>    <span class="err">$</span><span class="n">PROT_MODE_DSEG</span><span class="p">,</span> <span class="o">%</span><span class="n">ax</span>    <span class="err">#</span> <span class="n">Our</span> <span class="n">data</span> <span class="n">segment</span> <span class="n">selector</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">ds</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">DS</span><span class="o">:</span> <span class="n">Data</span> <span class="n">Segment</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">es</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">ES</span><span class="o">:</span> <span class="n">Extra</span> <span class="n">Segment</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">fs</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">FS</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">gs</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">GS</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">ss</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">SS</span><span class="o">:</span> <span class="n">Stack</span> <span class="n">Segment</span>
+  
+  <span class="cp"># 设置栈指针，并且调用C。
+</span>  <span class="n">movl</span>    <span class="err">$</span><span class="n">start</span><span class="p">,</span> <span class="o">%</span><span class="n">esp</span>
+  <span class="n">call</span> <span class="n">bootmain</span>                   <span class="err">#调用</span><span class="n">bootmain</span>
+
+    <span class="cp">#include &lt;inc/mmu.h&gt;
+</span>
+<span class="cp">#该文件启动CPU，切换到32-bit模式，进入C。
+#在地址0x7c00开始在实模式下（%cs=0 %ip=7c00）运行，
+#BIOS将硬盘的第一个扇区载入内存。
+</span>
+<span class="p">.</span><span class="n">set</span> <span class="n">PROT_MODE_CSEG</span><span class="p">,</span> <span class="mh">0x8</span>         <span class="err">#</span> <span class="n">kernel</span> <span class="n">code</span> <span class="n">segment</span> <span class="n">selector</span>
+<span class="p">.</span><span class="n">set</span> <span class="n">PROT_MODE_DSEG</span><span class="p">,</span> <span class="mh">0x10</span>        <span class="err">#</span> <span class="n">kernel</span> <span class="n">data</span> <span class="n">segment</span> <span class="n">selector</span>
+<span class="p">.</span><span class="n">set</span> <span class="n">CR0_PE_ON</span><span class="p">,</span>      <span class="mh">0x1</span>         <span class="err">#</span> <span class="n">protected</span> <span class="n">mode</span> <span class="n">enable</span> <span class="n">flag</span>
+
+<span class="p">.</span><span class="n">globl</span> <span class="n">start</span>
+<span class="n">start</span><span class="o">:</span>
+  <span class="p">.</span><span class="n">code16</span>                     <span class="err">#</span> <span class="mi">16</span><span class="o">-</span><span class="n">bit</span><span class="err">模式下的汇编</span>
+  <span class="n">cli</span>                         <span class="err">#</span> <span class="err">中断标志位置</span><span class="mi">0</span>
+  <span class="n">cld</span>                         <span class="err">#</span> <span class="err">方向标志位置</span><span class="mi">0</span><span class="err">，串操作指令递增</span>
+
+  <span class="cp"># 设置重要的段寄存器(DS, ES, SS).
+</span>  <span class="n">xorw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span><span class="o">%</span><span class="n">ax</span>             <span class="err">#</span> <span class="err">异或运算，清零</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span><span class="o">%</span><span class="n">ds</span>             <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">Data</span> <span class="n">Segment</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span><span class="o">%</span><span class="n">es</span>             <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">Extra</span> <span class="n">Segment</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span><span class="o">%</span><span class="n">ss</span>             <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">Stack</span> <span class="n">Segment</span>
+
+  <span class="cp"># 适应 A20:
+</span>  <span class="cp"># 为了与早期PC向后兼容，地址总线20低，以至于高于1MB的会卷回到0。
+</span>  <span class="cp"># 下面的代码就是解决的这个。
+</span><span class="n">seta20</span><span class="p">.</span><span class="mi">1</span><span class="o">:</span>
+  <span class="n">inb</span>     <span class="err">$</span><span class="mh">0x64</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>               <span class="err">#</span> <span class="err">等到不忙时</span>
+  <span class="n">testb</span>   <span class="err">$</span><span class="mh">0x2</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>
+  <span class="n">jnz</span>     <span class="n">seta20</span><span class="p">.</span><span class="mi">1</span>
+
+  <span class="n">movb</span>    <span class="err">$</span><span class="mh">0xd1</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>               <span class="err">#</span> <span class="mh">0xd1</span> <span class="o">-&gt;</span> <span class="err">端口</span> <span class="mh">0x64</span>
+  <span class="n">outb</span>    <span class="o">%</span><span class="n">al</span><span class="p">,</span><span class="err">$</span><span class="mh">0x64</span>
+
+<span class="n">seta20</span><span class="p">.</span><span class="mi">2</span><span class="o">:</span>
+  <span class="n">inb</span>     <span class="err">$</span><span class="mh">0x64</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>               <span class="err">#</span> <span class="n">Wait</span> <span class="k">for</span> <span class="n">not</span> <span class="n">busy</span>
+  <span class="n">testb</span>   <span class="err">$</span><span class="mh">0x2</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>
+  <span class="n">jnz</span>     <span class="n">seta20</span><span class="p">.</span><span class="mi">2</span>
+
+  <span class="n">movb</span>    <span class="err">$</span><span class="mh">0xdf</span><span class="p">,</span><span class="o">%</span><span class="n">al</span>               <span class="err">#</span> <span class="mh">0xdf</span> <span class="o">-&gt;</span> <span class="err">端口</span> <span class="mh">0x60</span>
+  <span class="n">outb</span>    <span class="o">%</span><span class="n">al</span><span class="p">,</span><span class="err">$</span><span class="mh">0x60</span>
+
+  <span class="cp"># 从实模式切换到保护模式，用一个bootstrap GDT和段translation，使得
+</span>  <span class="cp"># 虚拟地址和物理地址时等同的，这样有效的内存图就不会在切换期间被改变。
+</span>  <span class="n">lgdt</span>    <span class="n">gdtdesc</span>
+  <span class="n">movl</span>    <span class="o">%</span><span class="n">cr0</span><span class="p">,</span> <span class="o">%</span><span class="n">eax</span>
+  <span class="n">orl</span>     <span class="err">$</span><span class="n">CR0_PE_ON</span><span class="p">,</span> <span class="o">%</span><span class="n">eax</span>
+  <span class="n">movl</span>    <span class="o">%</span><span class="n">eax</span><span class="p">,</span> <span class="o">%</span><span class="n">cr0</span>
+  
+  <span class="cp"># 跳到下一条指令，但是在32-bit代码段中.
+</span>  <span class="cp"># 将处理器切换为32-bit模式
+</span>  <span class="n">ljmp</span>    <span class="err">$</span><span class="n">PROT_MODE_CSEG</span><span class="p">,</span> <span class="err">$</span><span class="n">protcseg</span>
+
+  <span class="p">.</span><span class="n">code32</span>                     <span class="err">#</span> <span class="mi">32</span><span class="o">-</span><span class="n">bit</span><span class="err">模式下汇编</span>
+<span class="n">protcseg</span><span class="o">:</span>
+  <span class="cp"># 设置保护模式下段寄存器
+</span>  <span class="n">movw</span>    <span class="err">$</span><span class="n">PROT_MODE_DSEG</span><span class="p">,</span> <span class="o">%</span><span class="n">ax</span>    <span class="err">#</span> <span class="n">Our</span> <span class="n">data</span> <span class="n">segment</span> <span class="n">selector</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">ds</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">DS</span><span class="o">:</span> <span class="n">Data</span> <span class="n">Segment</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">es</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">ES</span><span class="o">:</span> <span class="n">Extra</span> <span class="n">Segment</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">fs</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">FS</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">gs</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">GS</span>
+  <span class="n">movw</span>    <span class="o">%</span><span class="n">ax</span><span class="p">,</span> <span class="o">%</span><span class="n">ss</span>                <span class="err">#</span> <span class="o">-&gt;</span> <span class="n">SS</span><span class="o">:</span> <span class="n">Stack</span> <span class="n">Segment</span>
+  
+  <span class="cp"># 设置栈指针，并且调用C。
+</span>  <span class="n">movl</span>    <span class="err">$</span><span class="n">start</span><span class="p">,</span> <span class="o">%</span><span class="n">esp</span>
+  <span class="n">call</span> <span class="n">bootmain</span>                   <span class="err">#调用</span><span class="n">bootmain</span>
+
+  <span class="cp"># 如果bootmap返回了（应该不），就循环。
+</span><span class="n">spin</span><span class="o">:</span>
+  <span class="n">jmp</span> <span class="n">spin</span>
+
+<span class="cp"># Bootstrap GDT
+</span><span class="p">.</span><span class="n">p2align</span> <span class="mi">2</span>                                <span class="err">#</span> <span class="n">force</span> <span class="mi">4</span> <span class="n">byte</span> <span class="n">alignment</span>
+<span class="n">gdt</span><span class="o">:</span>
+  <span class="n">SEG_NULL</span>              <span class="err">#</span> <span class="n">null</span> <span class="n">seg</span>
+  <span class="n">SEG</span><span class="p">(</span><span class="n">STA_X</span><span class="o">|</span><span class="n">STA_R</span><span class="p">,</span> <span class="mh">0x0</span><span class="p">,</span> <span class="mh">0xffffffff</span><span class="p">)</span> <span class="err">#</span> <span class="n">code</span> <span class="n">seg</span>
+  <span class="n">SEG</span><span class="p">(</span><span class="n">STA_W</span><span class="p">,</span> <span class="mh">0x0</span><span class="p">,</span> <span class="mh">0xffffffff</span><span class="p">)</span>           <span class="err">#</span> <span class="n">data</span> <span class="n">seg</span>
+
+<span class="n">gdtdesc</span><span class="o">:</span>
+  <span class="p">.</span><span class="n">word</span>   <span class="mh">0x17</span>                            <span class="err">#</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">gdt</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+  <span class="p">.</span><span class="kt">long</span>   <span class="n">gdt</span>                             <span class="err">#</span> <span class="n">address</span> <span class="n">gdt</span>
+
+
+</code></pre></div> <p>4.下面是注释的main.c文件</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="cp">#include &lt;inc/x86.h&gt;
+#include &lt;inc/elf.h&gt;
+</span>
+<span class="cm">/**********************************************************************
+ * This a dirt simple boot loader, whose sole job is to boot
+ * an ELF kernel image from the first IDE hard disk.
+ *
+ * DISK LAYOUT
+ *  * 这个程序(boot.S and main.c)就是bootloader。它应该放在
+ *    磁盘的第一个扇区。
+ *
+ *  * 第二个扇区存储内核的镜像。
+ *
+ *  * 内核镜像必须时ELF格式的。
+ *
+ * BOOT UP STEPS
+ *  * 当CPU启动时，它向内存加载BIOS并且执行BIOS初始化设备，设置中断路由
+ *  * 并且向内存读入boot设备的第一个扇区，跳转至那。
+ *
+ *  * Assuming this boot loader is stored in the first sector of the
+ *    hard-drive, this code takes over...
+ *
+ *  * 控制开始于boot.S -- 这儿设置了进入保护模式和一个栈,这样C就能够执行并调用bootmain。
+ *
+ *  * bootmain() in this file takes over, reads in the kernel and jumps to it.
+ **********************************************************************/</span>
+
+<span class="cp">#define SECTSIZE    512
+#define ELFHDR      ((struct Elf *) 0x10000) // scratch space
+</span>
+<span class="kt">void</span> <span class="n">readsect</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">,</span> <span class="kt">uint32_t</span><span class="p">);</span>
+<span class="kt">void</span> <span class="n">readseg</span><span class="p">(</span><span class="kt">uint32_t</span><span class="p">,</span> <span class="kt">uint32_t</span><span class="p">,</span> <span class="kt">uint32_t</span><span class="p">);</span>
+
+<span class="kt">void</span>
+<span class="nf">bootmain</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">struct</span> <span class="n">Proghdr</span> <span class="o">*</span><span class="n">ph</span><span class="p">,</span> <span class="o">*</span><span class="n">eph</span><span class="p">;</span>
+
+    <span class="c1">//  阅读磁盘的第一页
+</span>    <span class="c1">//  调用readseg函数，这个函数有3个参数，
+</span>    <span class="c1">//  第一个是物理地址，第二个是页的大小，第三个是偏移量。
+</span>    <span class="n">readseg</span><span class="p">((</span><span class="kt">uint32_t</span><span class="p">)</span> <span class="n">ELFHDR</span><span class="p">,</span> <span class="n">SECTSIZE</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+
+    <span class="c1">// 是不是ELF格式
+</span>    <span class="k">if</span> <span class="p">(</span><span class="n">ELFHDR</span><span class="o">-&gt;</span><span class="n">e_magic</span> <span class="o">!=</span> <span class="n">ELF_MAGIC</span><span class="p">)</span>
+        <span class="k">goto</span> <span class="n">bad</span><span class="p">;</span>
+
+    <span class="c1">// 加载每个程序段 (ignores ph flags)
+</span>    <span class="n">ph</span> <span class="o">=</span> <span class="p">(</span><span class="k">struct</span> <span class="n">Proghdr</span> <span class="o">*</span><span class="p">)</span> <span class="p">((</span><span class="kt">uint8_t</span> <span class="o">*</span><span class="p">)</span> <span class="n">ELFHDR</span> <span class="o">+</span> <span class="n">ELFHDR</span><span class="o">-&gt;</span><span class="n">e_phoff</span><span class="p">);</span>
+    <span class="n">eph</span> <span class="o">=</span> <span class="n">ph</span> <span class="o">+</span> <span class="n">ELFHDR</span><span class="o">-&gt;</span><span class="n">e_phnum</span><span class="p">;</span>
+    <span class="k">for</span> <span class="p">(;</span> <span class="n">ph</span> <span class="o">&lt;</span> <span class="n">eph</span><span class="p">;</span> <span class="n">ph</span><span class="o">++</span><span class="p">)</span>
+        <span class="c1">// p_pa is the 这个段的加载地址 (也是物理地址)
+</span>        <span class="n">readseg</span><span class="p">(</span><span class="n">ph</span><span class="o">-&gt;</span><span class="n">p_pa</span><span class="p">,</span> <span class="n">ph</span><span class="o">-&gt;</span><span class="n">p_memsz</span><span class="p">,</span> <span class="n">ph</span><span class="o">-&gt;</span><span class="n">p_offset</span><span class="p">);</span>
+
+    <span class="c1">// 从EFL头中，调用整个指针。
+</span>    <span class="c1">// 注意：它不返回。
+</span>    <span class="p">((</span><span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="p">)(</span><span class="kt">void</span><span class="p">))</span> <span class="p">(</span><span class="n">ELFHDR</span><span class="o">-&gt;</span><span class="n">e_entry</span><span class="p">))();</span>
+
+    <span class="nl">bad:</span>
+     <span class="n">outw</span><span class="p">(</span><span class="mh">0x8A00</span><span class="p">,</span> <span class="mh">0x8A00</span><span class="p">);</span>
+     <span class="n">outw</span><span class="p">(</span><span class="mh">0x8A00</span><span class="p">,</span> <span class="mh">0x8E00</span><span class="p">);</span>
+    <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="cm">/* do nothing */</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c1">// 从内核的从count到offset到物理地址‘pa’
+// Might copy more than asked
+</span><span class="kt">void</span>
+<span class="nf">readseg</span><span class="p">(</span><span class="kt">uint32_t</span> <span class="n">pa</span><span class="p">,</span> <span class="kt">uint32_t</span> <span class="n">count</span><span class="p">,</span> <span class="kt">uint32_t</span> <span class="n">offset</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">uint32_t</span> <span class="n">end_pa</span><span class="p">;</span>
+
+    <span class="n">end_pa</span> <span class="o">=</span> <span class="n">pa</span> <span class="o">+</span> <span class="n">count</span><span class="p">;</span>  <span class="c1">//计算出这个扇区结束的物理地址
+</span>
+    <span class="c1">// round down to 扇区边界
+</span>    <span class="n">pa</span> <span class="o">&amp;=</span> <span class="o">~</span><span class="p">(</span><span class="n">SECTSIZE</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+
+    <span class="c1">// translate from bytes to sectors, 
+</span>    <span class="c1">// 在扇区1开始了内核
+</span>    <span class="n">offset</span> <span class="o">=</span> <span class="p">(</span><span class="n">offset</span> <span class="o">/</span> <span class="n">SECTSIZE</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+
+    <span class="c1">// If this is too slow, we could read lots of sectors at a time.
+</span>    <span class="c1">// We'd write more to memory than asked, but it doesn't matter --
+</span>    <span class="c1">// we load in increasing order.
+</span>    <span class="k">while</span> <span class="p">(</span><span class="n">pa</span> <span class="o">&lt;</span> <span class="n">end_pa</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Since we haven't enabled paging yet and we're using
+</span>        <span class="c1">// an identity segment mapping (see boot.S), we can
+</span>        <span class="c1">// use physical addresses directly.  This won't be the
+</span>        <span class="c1">// case once JOS enables the MMU.
+</span>        <span class="n">readsect</span><span class="p">((</span><span class="kt">uint8_t</span><span class="o">*</span><span class="p">)</span> <span class="n">pa</span><span class="p">,</span> <span class="n">offset</span><span class="p">);</span>
+        <span class="n">pa</span> <span class="o">+=</span> <span class="n">SECTSIZE</span><span class="p">;</span>
+        <span class="n">offset</span><span class="o">++</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kt">void</span>
+<span class="nf">waitdisk</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="c1">// wait for disk reaady
+</span>    <span class="k">while</span> <span class="p">((</span><span class="n">inb</span><span class="p">(</span><span class="mh">0x1F7</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mh">0xC0</span><span class="p">)</span> <span class="o">!=</span> <span class="mh">0x40</span><span class="p">)</span>
+        <span class="cm">/* do nothing */</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kt">void</span>
+<span class="nf">readsect</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">dst</span><span class="p">,</span> <span class="kt">uint32_t</span> <span class="n">offset</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="c1">// wait for disk to be ready
+</span>    <span class="n">waitdisk</span><span class="p">();</span>
+
+    <span class="n">outb</span><span class="p">(</span><span class="mh">0x1F2</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>     <span class="c1">// count = 1
+</span>    <span class="n">outb</span><span class="p">(</span><span class="mh">0x1F3</span><span class="p">,</span> <span class="n">offset</span><span class="p">);</span>
+    <span class="n">outb</span><span class="p">(</span><span class="mh">0x1F4</span><span class="p">,</span> <span class="n">offset</span> <span class="o">&gt;&gt;</span> <span class="mi">8</span><span class="p">);</span>
+    <span class="n">outb</span><span class="p">(</span><span class="mh">0x1F5</span><span class="p">,</span> <span class="n">offset</span> <span class="o">&gt;&gt;</span> <span class="mi">16</span><span class="p">);</span>
+    <span class="n">outb</span><span class="p">(</span><span class="mh">0x1F6</span><span class="p">,</span> <span class="p">(</span><span class="n">offset</span> <span class="o">&gt;&gt;</span> <span class="mi">24</span><span class="p">)</span> <span class="o">|</span> <span class="mh">0xE0</span><span class="p">);</span>
+    <span class="n">outb</span><span class="p">(</span><span class="mh">0x1F7</span><span class="p">,</span> <span class="mh">0x20</span><span class="p">);</span>  <span class="c1">// cmd 0x20 - read sectors
+</span>
+    <span class="c1">// wait for disk to be ready
+</span>    <span class="n">waitdisk</span><span class="p">();</span>
+
+    <span class="c1">// read a sector
+</span>    <span class="n">insl</span><span class="p">(</span><span class="mh">0x1F0</span><span class="p">,</span> <span class="n">dst</span><span class="p">,</span> <span class="n">SECTSIZE</span><span class="o">/</span><span class="mi">4</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <h4 id="section-3">需要回答出下列问题</h4> <ol> <li> <p>处理器在什么时候开始执行32位程序？到底是什么引起了16位到32位模式的切换？<br /> 在boot.S中将处理器切换为32-bit模式的指令是<code class="highlighter-rouge">ljmp $PROT_MODE_CSEG, $protcseg</code>,对应的boot.asm是<code class="highlighter-rouge">7c2d: ea 32 7c 08 00 66 b8 ljmp $0xb866,$0x87c32</code></p> </li> <li> <p>boot loader执行的最后一条指令是什么？它加载内核的第一条指令是什么？<br /> boot loader的最后一条指令就是在main.c中的<code class="highlighter-rouge">((void (*)(void)) (ELFHDR-&gt;e_entry))();</code>,该指令上的注释表示准备读区ELF的header point，也就是操作系统内核的start address。</p> <p>在<strong>obj/kernel/kernel.sym</strong>中第一行就是<code class="highlighter-rouge">0010000c T _start</code>,而从<strong>obj/kernel/kernel.asm</strong>中的</p> <p><code class="highlighter-rouge">c .globl entry entry: movw $0x1234,0x472 # warm boot </code></p> <p>看出加载内核的第一条指令就是<br /> <code class="highlighter-rouge">c movw $0x1234,0x472 </code></p> </li> <li> <p>内核的第一条指令是什么？<br /> 问题2的回答也回答了该问题。</p> </li> <li> <p>为了能够从磁盘获取整个内核，boot loader是如何决定它必须读取多少扇区的？并且它是在哪里找到这些信息的？</p> </li> </ol> <p>bootload决定它读区多少扇区是从储存在ELF的header里的信息得知的。通过<code class="highlighter-rouge">if (ELFHDR-&gt;e_magic != ELF_MAGIC)</code>判断是不是ELF文件，是的话就加载程序段</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="n">ph</span> <span class="o">=</span> <span class="p">(</span><span class="k">struct</span> <span class="n">Proghdr</span> <span class="o">*</span><span class="p">)</span> <span class="p">((</span><span class="kt">uint8_t</span> <span class="o">*</span><span class="p">)</span> <span class="n">ELFHDR</span> <span class="o">+</span> <span class="n">ELFHDR</span><span class="o">-&gt;</span><span class="n">e_phoff</span><span class="p">);</span>
+<span class="n">eph</span> <span class="o">=</span> <span class="n">ph</span> <span class="o">+</span> <span class="n">ELFHDR</span><span class="o">-&gt;</span><span class="n">e_phnum</span><span class="p">;</span>
+</code></pre></div> <h3 id="section-4">加载内核</h3> <p>这节主要是继续研究main.c文件的代码的细节，因此需要对C语言指针部分进行复习。</p> <blockquote> <p>练习4:阅读关于C的指针，参考书有<a href="">The C Programming Language by Brian Kernighan and Dennis Ritchie (known as ‘K&amp;R’)</a>。阅读其中的5.1到5.5。并确保理解<strong>pointers.c</strong>，弄明白指针值是从哪里来的。尤其是弄明白在第1行和第6行的指针地址是怎么来的，第2行到第4行的值是怎么得到的，为什么第5行输出的值似乎有错误。建议如果对C的指针不熟的话，千万不要跳过这个练习。</p> </blockquote> <p>运行完pointer.c代码会输出如下结果</p> <div class="highlighter-rouge"><pre class="highlight"><code>shijiandeMacBook-Pro:Desktop alvin$ ./pointer 
+1: a = 0x7fff56c748e0, b = 0x7f8ff74027d0, c = 0x100000000
+2: a[0] = 200, a[1] = 101, a[2] = 102, a[3] = 103
+3: a[0] = 200, a[1] = 300, a[2] = 301, a[3] = 302
+4: a[0] = 200, a[1] = 400, a[2] = 301, a[3] = 302
+5: a[0] = 200, a[1] = 128144, a[2] = 256, a[3] = 302
+6: a = 0x7fff56c748e0, b = 0x7fff56c748e4, c = 0x7fff56c748e1
+</code></pre></div> <p>pointer.c的代码如下：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="cp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+</span>
+<span class="kt">void</span> <span class="nf">f</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="n">a</span><span class="p">[</span><span class="mi">4</span><span class="p">];</span>
+    <span class="kt">int</span> <span class="o">*</span><span class="n">b</span> <span class="o">=</span> <span class="n">malloc</span><span class="p">(</span><span class="mi">16</span><span class="p">);</span>
+    <span class="kt">int</span> <span class="o">*</span><span class="n">c</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">i</span><span class="p">;</span>
+
+    <span class="n">printf</span><span class="p">(</span><span class="s">"1: a = %p, b = %p, c = %p</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">);</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="n">a</span><span class="p">;</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+    <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">100</span> <span class="o">+</span> <span class="n">i</span><span class="p">;</span>
+    <span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">200</span><span class="p">;</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">"2: a[0] = %d, a[1] = %d, a[2] = %d, a[3] = %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+       <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">3</span><span class="p">]);</span>
+
+    <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">300</span><span class="p">;</span>
+    <span class="o">*</span><span class="p">(</span><span class="n">c</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span> <span class="o">=</span> <span class="mi">301</span><span class="p">;</span>
+    <span class="mi">3</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="mi">302</span><span class="p">;</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">"3: a[0] = %d, a[1] = %d, a[2] = %d, a[3] = %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+       <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">3</span><span class="p">]);</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="o">*</span><span class="n">c</span> <span class="o">=</span> <span class="mi">400</span><span class="p">;</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">"4: a[0] = %d, a[1] = %d, a[2] = %d, a[3] = %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+       <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">3</span><span class="p">]);</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="p">(</span><span class="kt">int</span> <span class="o">*</span><span class="p">)</span> <span class="p">((</span><span class="kt">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">);</span>
+    <span class="o">*</span><span class="n">c</span> <span class="o">=</span> <span class="mi">500</span><span class="p">;</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">"5: a[0] = %d, a[1] = %d, a[2] = %d, a[3] = %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+       <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">3</span><span class="p">]);</span>
+
+    <span class="n">b</span> <span class="o">=</span> <span class="p">(</span><span class="kt">int</span> <span class="o">*</span><span class="p">)</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="p">(</span><span class="kt">int</span> <span class="o">*</span><span class="p">)</span> <span class="p">((</span><span class="kt">char</span> <span class="o">*</span><span class="p">)</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">);</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">"6: a = %p, b = %p, c = %p</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="kt">int</span>
+<span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">ac</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">av</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">f</span><span class="p">();</span>
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+
+</code></pre></div> <p>这里跳过这个练习。</p> <p>在深入main.c之前，需要了解ELF二进制文件。编译并链接比如JOS内核这样的C程序，编译器会将源文件(.c)转为包含汇编指令的目标文件(.o)。接着链接器把所有的目标文件组合成一个单独的二进制镜像（binary image），比如<strong>obj/kern/kernel</strong>，这种文件就是ELF(是可执行可链接形式的缩写)。</p> <p>当前只需要知道，可执行的ELF文件由带有加载信息的头，多个程序段表组成。每个程序段表是一个连续代码块或者数据，它们要被加载到内存具体地址中。boot loader不修改源码和数据，直接加载到内存中并运行。</p> <p>ELF开头是固定长度的ELF头，之后是一个可变长度的程序头，它列出了需要加载的程序段。ELF头的定义在 inc/elf.h 中。<br /> 注意观察<strong>inc/elf.h</strong>，我们感兴趣的程序有：</p> <ul> <li>.text: 程序执行指令</li> <li>.rodata: 只读数据, 例如ASCII字符串常量。(We will not bother setting up the hardware to prohibit writing, however.)</li> <li>.data: 数据部分的初始化数据</li> </ul> <p>在kernel中考察所有的name，sizes和link address可以通过typing：<code class="highlighter-rouge">objdump -h obj/kern/kernel</code></p> <p><img src="https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_objdump_kernel.PNG?raw=true" alt="kernel" /></p> <p>重点关注.text段的VMA（链接地址）和LMA（加载地址）。一个段的加载地址是该段需要载入内存的内存地址。段的链接地址是该段要去执行的内存地址。<br /> 通常链接地址和加载地址是一样的。例如，boot loader的.text段:</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="n">objdump</span> <span class="o">-</span><span class="n">h</span> <span class="n">obj</span><span class="o">/</span><span class="n">boot</span><span class="o">/</span><span class="n">boot</span><span class="p">.</span><span class="n">out</span>
+</code></pre></div> <p><img src="https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_objdump_bot.PNG?raw=true" alt="boot" /></p> <p>bootloader用ELF程序头来决定怎样去加载段。程序头（The program headers）表示了哪部分的ELF<br /> ：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="n">objdump</span> <span class="o">-</span><span class="n">x</span> <span class="n">obj</span><span class="o">/</span><span class="n">kern</span><span class="o">/</span><span class="n">kernel</span>
+</code></pre></div> <p><img src="https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_x_%20objdump_kernel.PNG?raw=true" alt="x" /></p> <p>其中Program Headers下面列出的程序头中，开头的LOAD代表已经加载到内存中了，另外显示出了虚拟地址(vaddr)，物理地址(paddr)以及存放区域的大小(memsz和filesz)。</p> <p>回到<strong>boot/main.c</strong>,每个程序头的ph-&gt;p_pa 包括了段的目标物理地址。 (在这个例子中，它确实就是一个物理地址，虽然ELF要求是模糊的).</p> <p>BIOS开始在地址0x7c00加载boot扇区到内存，因此这就是boot扇区的加载地址。这也是boot扇区从哪里执行的位置，同样也是链接地址。在 boot/Makefrag 中，通过传 -Ttext 0x7C00 这个参数给链接程序设置了链接地址，因此链接程序在生成的代码中产生正确的内存地址。</p> <blockquote> <p>练习5:再次追踪bootloader的一开始的指令，并且辨别第一个指令是否“break”或如果boot loader的链接地址错误，第一个指令是否会出错。然后修改在boot/Makefrag的链接地址使其出错，运行<code class="highlighter-rouge">make clean</code>,重新用<code class="highlighter-rouge">make</code>编译lab，再次追踪boot loader看看会发生什么。当然，做完后别忘恢复boot/Makefrag，并且<code class="highlighter-rouge">make clean</code>。</p> </blockquote> <p>这里将lab复制，更名为lab1，然后修改<code class="highlighter-rouge">Makefrag</code>文件：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="err">$</span><span class="p">(</span><span class="n">OBJDIR</span><span class="p">)</span><span class="o">/</span><span class="n">boot</span><span class="o">/</span><span class="n">boot</span><span class="o">:</span> <span class="err">$</span><span class="p">(</span><span class="n">BOOT_OBJS</span><span class="p">)</span>
+    <span class="err">@</span><span class="n">echo</span> <span class="o">+</span> <span class="n">ld</span> <span class="n">boot</span><span class="o">/</span><span class="n">boot</span>
+    <span class="err">$</span><span class="p">(</span><span class="n">V</span><span class="p">)</span><span class="err">$</span><span class="p">(</span><span class="n">LD</span><span class="p">)</span> <span class="err">$</span><span class="p">(</span><span class="n">LDFLAGS</span><span class="p">)</span> <span class="o">-</span><span class="n">N</span> <span class="o">-</span><span class="n">e</span> <span class="n">start</span> <span class="o">-</span><span class="n">Ttext</span> <span class="mh">0x9C00</span> <span class="o">-</span><span class="n">o</span> <span class="err">$@</span><span class="p">.</span><span class="n">out</span> <span class="err">$</span><span class="o">^</span>
+    <span class="err">$</span><span class="p">(</span><span class="n">V</span><span class="p">)</span><span class="err">$</span><span class="p">(</span><span class="n">OBJDUMP</span><span class="p">)</span> <span class="o">-</span><span class="n">S</span> <span class="err">$@</span><span class="p">.</span><span class="n">out</span> <span class="o">&gt;</span><span class="err">$@</span><span class="p">.</span><span class="n">asm</span>
+    <span class="err">$</span><span class="p">(</span><span class="n">V</span><span class="p">)</span><span class="err">$</span><span class="p">(</span><span class="n">OBJCOPY</span><span class="p">)</span> <span class="o">-</span><span class="n">S</span> <span class="o">-</span><span class="n">R</span> <span class="s">".eh_frame"</span> <span class="o">-</span><span class="n">O</span> <span class="n">binary</span> <span class="err">$@</span><span class="p">.</span><span class="n">out</span> <span class="err">$@</span>
+    <span class="err">$</span><span class="p">(</span><span class="n">V</span><span class="p">)</span><span class="n">perl</span> <span class="n">boot</span><span class="o">/</span><span class="n">sign</span><span class="p">.</span><span class="n">pl</span> <span class="err">$</span><span class="p">(</span><span class="n">OBJDIR</span><span class="p">)</span><span class="o">/</span><span class="n">boot</span><span class="o">/</span><span class="n">boot</span>
+</code></pre></div> <p>这样将-Ttest后到地址改为了0x9C00，通过 <code class="highlighter-rouge">make clean</code>并重新<code class="highlighter-rouge">make</code>后，若再想<code class="highlighter-rouge">make qemu</code>就会出错了：</p> <p><img src="https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_make_clean_error.PNG?raw=true" alt="error make qemu" /></p> <p>同时在boot.asm中，开始地址也发生了改变：</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="mo">0000</span><span class="mi">9</span><span class="n">c00</span> <span class="o">&lt;</span><span class="n">start</span><span class="o">&gt;:</span>
+<span class="p">.</span><span class="n">set</span> <span class="n">CR0_PE_ON</span><span class="p">,</span>      <span class="mh">0x1</span>         <span class="err">#</span> <span class="n">protected</span> <span class="n">mode</span> <span class="n">enable</span> <span class="n">flag</span>
+</code></pre></div> <p><em>那为什么修改Makefrag后会出错呢？</em></p> <p>一旦修改了-Ttest后的参数，由于这个参数是链接地址，若参数不对，那么链接程序就产生了错误的内存地址。</p> <p>回顾内核的加载地址和链接地址，不像boot loader，这两个地址并不一样：内核告诉boot loader把它加载到一个低地址内存（1M），但它却想要从一个高地址上去执行。</p> <p>还有一个ELF的头文件信息比较重要，那就是e_entry。它有程序的入口指针的链接地址：程序需要在程序文本段段内存地址执行，通过命令看到入口指针：</p> <p>！<a href="https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/lab1_objdump_f.PNG?raw=true">entry</a></p> <p>现在应该能理解在main.c中的ELF loader。它在段的加载地址上读取了从磁盘到内存的每一个内存段，并且跳到内核入口指针。</p> <blockquote> <p>练习6：可以用GDB的命令x测试我们的内存。使用GDB的 <em>x/Nx ADDR</em>可以打印内存地址ADDR的 N 个字。字的大小分情况的，GDB中一个字是两个字节。<br /> 重置机器，在BIOS进入到boot loader，查看BIOS启动时0x00100000处的8个words，然后继续到bootloader进入内核的位置，再查看，发现8个words的内容不同。为什么？第二个断点是什么？（just think）</p> </blockquote> <h2 id="section-5">参考资料：</h2> <ol> <li>MIT6.828课件</li> <li>博文：<a href="http://xinqiu.me/2016/10/15/MIT-6.828-1/">1</a>;</li> <li>博文：<a href="http://blog.csdn.net/bysui/article/details/51453329">2</a>.</li> </ol> <aside class="share"> <p>If you liked this article and think others should read it, please share it on <a href="http://twitter.com/share?text=MIT6.828 Lab1 Booting a PC Part 2&amp;url=http://alvinsjq.github.io/2017/OS-Lab1-p2/&amp;via=Alvin_sjq" onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">Twitter <i class="fa fa-twitter" aria-hidden="true" style="color:#00aced"></i></a>or <a href="https://www.facebook.com/sharer/sharer.php?u=http://alvinsjq.github.io/2017/OS-Lab1-p2/" onclick="window.open(this.href, 'facebook-share', 'width=550,height=235');return false;">facebook <i class="fa fa-facebook-square" aria-hidden="true" style="color:#3b5998"></i></a>.</p> </aside> </div> <style type="text/css"> .tagged { margin-top: 1rem; } .tagged a { border: 1px solid #ddd; padding: 2px 5px; background: transparent; display: inline-block; color: #999; outline: 0; text-decoration: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; font-size: 70%; } .tagged a:hover { cursor: pointer; border: 1px solid #555; background: #444; color: #fff; } .back { /*text-align: center;*/ text-transform: uppercase; letter-spacing: 1px; } </style> <div class="tagged"> <a href="http://alvinsjq.github.io/tagged#mit6-828"><i class="fa fa-hashtag" aria-hidden="true"></i>MIT6.828</a> <a href="http://alvinsjq.github.io/tagged#operating-system"><i class="fa fa-hashtag" aria-hidden="true"></i>Operating System</a> <a href="http://alvinsjq.github.io/tagged#操作系统"><i class="fa fa-hashtag" aria-hidden="true"></i>操作系统</a> <a href="http://alvinsjq.github.io/tagged#学习历程"><i class="fa fa-hashtag" aria-hidden="true"></i>学习历程</a> <a href="http://alvinsjq.github.io/tagged#6828l1"><i class="fa fa-hashtag" aria-hidden="true"></i>6828L1</a> <a href="http://alvinsjq.github.io/tagged#boot-loader"><i class="fa fa-hashtag" aria-hidden="true"></i>boot loader</a> </div> <br> <div class="back"><a href="/"><i class="fa fa-chevron-left"></i>Back</a></div> </article> <aside id="comments" class="disqus"> <div class="container"> <div id="gitmentContainer"></div> <link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css"> <script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script> <script> var gitment = new Gitment({ id: '<%= page.title %>', owner: 'Alvinsjq', repo: 'Alvinsjq.github.io', oauth: { client_id: 'b108345cd65235055f4a', client_secret: '2faaebf58d2e33a50a022d84c6448d9d9535feda', }, }); gitment.render('gitmentContainer'); </script> </div> </aside> <footer class="site-footer"> <div class="container"> <small class="block">&copy; 2018 Alvinsjq. All rights reserved.</small> <small><a href="https://github.com/heiswayi/thinkspace">Thanks for <i class="fa fa-heart" aria-hidden="true" style="color:#DD3D36"></i> Thinkspace</a> theme by <a href="http://heiswayi.github.io/">Heiswayi Nrird</a>.</small> <div class="footer-social-links"> <a href="http://alvinsjq.github.io/feed.xml" title="RSS Feed" target="_blank"><i class="fa fa-rss"></i></a> <a href="http://weibo.com/p/1005051719812480/home" title="Weibo" target="_blank"><i class="fa fa-weibo" aria-hidden="true"></i></a> <a href="https://twitter.com/Alvin_sjq" title="Twitter" target="_blank"><i class="fa fa-twitter"></i></a> <a href="https://github.com/Alvinsjq/" title="GitHub Repositories" target="_blank"><i class="fa fa-github-alt"></i></a> <a href="https://www.instagram.com/sj_alvin/" title="Instagram" target="_blank"><i class="fa fa-instagram"></i></a> </div> </div> </footer> </main> </body> </html>

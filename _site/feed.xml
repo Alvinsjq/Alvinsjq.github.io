@@ -1,0 +1,1462 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Alvin Is</title>
+    <description>想要多懂点的家伙</description>
+    <link>http://alvinsjq.github.io/</link>
+    <atom:link href="http://alvinsjq.github.io/feed.xml" rel="self" type="application/rss+xml"/>
+    <pubDate>Tue, 06 Feb 2018 16:21:04 +0800</pubDate>
+    <lastBuildDate>Tue, 06 Feb 2018 16:21:04 +0800</lastBuildDate>
+    <generator>Jekyll v3.0.1</generator>
+    
+      <item>
+        <title>Implement a naive Bayes classifier for spam classification</title>
+        <description>&lt;p&gt;这是一道来自CS 229, Autumn 2016 Problem Set #2 的作业题，根据给定的数据，使用朴素贝叶斯算法来对垃圾邮件进行分类。&lt;/p&gt;
+
+&lt;h4 id=&quot;section&quot;&gt;概述&lt;/h4&gt;
+
+&lt;p&gt;垃圾邮件分类中的特征向量一般都是离散值，根据lecture note上对垃圾邮件过滤器的讲述，我们知道特征向量x可以用来表示一封邮件，$ x=[x_{1},…,x_{n}]^{T}$中$x_{i}=1$就代表这封邮件包含在词汇集中的第i个字符。类似地，在这道习题中，也会有一个已经处理好的词汇集，列出了邮件中会出现的单词，但是这里面只存了一些出现频率为中等的词汇，因为偶尔出现和频繁出现的（例如of，the这类的）词汇分类的价值有限。当然还预先使用了一些调控算法使得形近的单词转为一样的词，例如“price”，“prices”，“priced”都看作是“price“。那么该题提供的词汇集有1448个单词。&lt;/p&gt;
+
+&lt;h4 id=&quot;section-1&quot;&gt;朴素贝叶斯思想&lt;/h4&gt;
+
+&lt;p&gt;&lt;strong&gt;条件独立&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;朴素贝叶斯用到的假设就是条件独立假设：&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;&lt;strong&gt;Definition&lt;/strong&gt;: Given three sets of random variables X,Y and Z, we say X is &lt;strong&gt;conditionally independent&lt;/strong&gt; of Y given Z, if and only if the probability distribution governing X is independent of the value of Y given Z; that is:&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;(\forall i,j,k) P(X=x_{i}|Y=y_{j},Z=z_{k})=P(X=x_{i}|Z=z_{k})&lt;/script&gt;
+
+&lt;p&gt;因此我们就可以将概率写成：&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;P(X_{1},...,X_{n}|Y) = \prod_{i=1}^{n} P(X_{i}|Y)&lt;/script&gt;
+
+&lt;!--more--&gt;
+
+&lt;p&gt;&lt;strong&gt;参数&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;正如讲义与作业中设定的，我们设一些参数：&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{i| y=1}  = p(x_{i}=1|\ y=1)&lt;/script&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{i| y=0}  = p(x_{i}=1|\ y=0)&lt;/script&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{i| y=1}  = p(y=1)&lt;/script&gt;
+
+&lt;p&gt;由于似然概率&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;L(\phi_{i| y=1},\phi_{i| y=0}, \phi_{i| y=1}) = \prod_{i=1}^{m} p(x^{(i)},y^{(i)})&lt;/script&gt;
+
+&lt;p&gt;因此取对数并求偏导设为零可求得参数值&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{j|y=1}  = \frac{\sum_{i=1}^{m}1\{x_{j}^{(i)}=1 \land y^{(i)}=1 \}}{ \sum_{i=1}^{m} 1 \{ y^{(i)}=1\}}&lt;/script&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{j|y=0}  = \frac{\sum_{i=1}^{m}1\{x_{j}^{(i)}=1 \land y^{(i)}=0 \}}{ \sum_{i=1}^{m} 1 \{ y^{(i)}=0\}}&lt;/script&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{y} = \frac{\sum_{i=1}^{m} 1 \{ y^{(i)}=1\}}{m}&lt;/script&gt;
+
+&lt;p&gt;&lt;strong&gt;测试&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;那么这样给定一个测试向量$X^{new}$，那么通过上面的参数我们就可以进行预测：&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;Y^{new} = arg\ max_{y} \frac{p(y)\prod_{i}p(x_{i}|y)}{p(y=0)\prod_{i}p(x_{i}|y=0)+p(y=1)\prod_{i}p(x_{i}|y=1)}&lt;/script&gt;
+
+&lt;h4 id=&quot;section-2&quot;&gt;优化——拉普拉斯平滑&lt;/h4&gt;
+
+&lt;p&gt;为防止概率事件为0，则需要加上一些平滑参数，从而得到该题下新的参数估计：&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{j|y=1}  = \frac{\sum_{i=1}^{m}1\{x_{j}^{(i)}=1 \land y^{(i)}=1 \}+1}{ \sum_{i=1}^{m} 1 \{ y^{(i)}=1\}+2}&lt;/script&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{j|y=0}  = \frac{\sum_{i=1}^{m}1\{x_{j}^{(i)}=1 \land y^{(i)}=0 \}+1}{ \sum_{i=1}^{m} 1 \{ y^{(i)}=0\}+2}&lt;/script&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{y}  = \frac{\sum_{i=1}^{m} 1 \{ y^{(i)}=1\}+1}{m+2}&lt;/script&gt;
+
+&lt;h4 id=&quot;section-3&quot;&gt;垃圾邮件分类&lt;/h4&gt;
+
+&lt;p&gt;&lt;strong&gt;预处理&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;习题给出了一些必要的调用函数，其中readMatrix函数对训练数据进行了预处理，从而得到spmatrix, tokenlist, trainCategory。&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;spmatrix&lt;br /&gt;
+readMatrix先得到一个稀疏矩阵matrix，用sparse实现，&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;...
+(39,1033)     2
+(10,1035)     1
+(31,1035)     1
+(18,1036)     4
+(38,1036)     2
+(2,1037)      1
+...
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;该矩阵的行代表一个样例，列代表不同的的词汇token，而矩阵(i,j)元素则是在邮件i中第j个token出现的数量；&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;tokenlist&lt;br /&gt;
+这个就是词汇token向量；&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;trainCategory&lt;br /&gt;
+trainCategory也是一个向量。&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;strong&gt;训练函数nb_train.m&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;下面是朴素贝叶斯的训练算法，这里的trainMatrix将矩阵spmatrix转换为稀疏矩阵。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;spmatrix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tokenlist&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;trainCategory&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readMatrix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;&#39;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;MATRIX&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;TRAIN&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;&#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;trainMatrix&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;full&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;spmatrix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;numTrainDocs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;trainMatrix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;trainMatrix&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;矩阵的行数&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;numTokens&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;trainMatrix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;    &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;trainMatrix&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;矩阵的列数&lt;/span&gt;  
+
+&lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;YOUR&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;CODE&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;HERE&lt;/span&gt;
+
+     &lt;span class=&quot;n&quot;&gt;V&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;trainMatrix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;trainMatrix&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;矩阵的列数，特征向量&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;X&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;的维数&lt;/span&gt;
+     &lt;span class=&quot;n&quot;&gt;neg&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;trainMatrix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;find&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;trainCategory&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;neg&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;矩阵表示的是那些标签为&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;的样本&lt;/span&gt;
+     &lt;span class=&quot;n&quot;&gt;pos&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;trainMatrix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;find&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;trainCategory&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;neg&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;矩阵表示的是那些标签为&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;的样本&lt;/span&gt;
+     &lt;span class=&quot;n&quot;&gt;neg_words&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;neg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;存储&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;neg&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;矩阵的元素之和&lt;/span&gt;
+     &lt;span class=&quot;n&quot;&gt;pos_words&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pos&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;存储&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pos&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;矩阵的元素之和&lt;/span&gt;
+     &lt;span class=&quot;n&quot;&gt;neg_log_prior&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;neg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;numTrainDocs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;  &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;的先验概率&lt;/span&gt;
+     &lt;span class=&quot;n&quot;&gt;pos_log_prior&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pos&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;numTrainDocs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;  &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;的先验概率&lt;/span&gt;
+
+     &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;V&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;  &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;对特征向量的每一个&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;token&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;计算它们的&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;先验概率，&lt;/span&gt;
+       &lt;span class=&quot;n&quot;&gt;neg_log_phi&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;neg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;neg_words&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;V&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;  &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;对应公式&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;11&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;，注意这里的&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;token&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;计算的是出现的个数&lt;/span&gt;
+       &lt;span class=&quot;n&quot;&gt;pos_log_phi&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pos&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pos_words&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;V&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;  &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;对应公式&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;12&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; 
+&lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;strong&gt;测试函数nb_test.m&lt;/strong&gt;&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;numTestDocs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+       &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;j&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;v&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;find&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;testMatrix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt; 
+       &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;得到第&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;个测试样本&lt;/span&gt; 
+       &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;向量则是非零元素所在的行，这种情况下都是&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;
+       &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;j&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;向量则是非零元素所在的列，这就意味着可以知道有哪些&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;token&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;的个数非零&lt;/span&gt; 
+       &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;v&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;向量则是非零元素的值&lt;/span&gt;
+
+       &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;计算后验概率，由于是取&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;，因此这里有‘&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;’&lt;/span&gt;
+       &lt;span class=&quot;n&quot;&gt;neg_posterior&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;v&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;neg_log_phi&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;j&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;neg_log_prior&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; 
+       &lt;span class=&quot;n&quot;&gt;pos_posterior&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;v&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pos_log_phi&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;j&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pos_log_prior&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+       &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;neg_posterior&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pos_posterior&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+         &lt;span class=&quot;n&quot;&gt;output&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+       &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt;
+         &lt;span class=&quot;n&quot;&gt;output&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;k&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+       &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;最后如果对所有训练集都进行训练的话，可以得到测试误差为1.63%。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;该博文为学习机器学习时的笔记，由于水平有限，可能会存在错误，欢迎指正。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+</description>
+        <pubDate>Sat, 22 Jul 2017 00:38:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/a-case-of-naive-bayes/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/a-case-of-naive-bayes/</guid>
+        
+        <category>机器学习</category>
+        
+        <category>cs229</category>
+        
+        
+        <category>机器学习</category>
+        
+      </item>
+    
+      <item>
+        <title>cs229 note 1 翻译笔记</title>
+        <description>&lt;p&gt;最学期边学习机器学习，边翻译cs229的讲义，于是有了这样的博文。这篇的主要内容与note1一致：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;引例&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;线性回归&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;分类与逻辑回归&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt; 生成线性模型&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;!--more--&gt;
+
+&lt;p&gt;详细可见如下翻译的讲义，由于个人水平有限，刚刚起步，欢迎指出在翻译讲义中出现的问题。&lt;/p&gt;
+
+&lt;embed src=&quot;/assets/file/note1_Supervised_learning.pdf&quot; width=&quot;660&quot; height=&quot;580&quot; /&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;手机端用户可以&lt;a href=&quot;http://alvinsjq.github.io/assets/file/note1_Supervised_learning.pdf&quot;&gt;下载PDF原文&lt;/a&gt;进行阅读。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+</description>
+        <pubDate>Fri, 21 Jul 2017 13:40:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/cs229note1/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/cs229note1/</guid>
+        
+        <category>机器学习</category>
+        
+        <category>cs229</category>
+        
+        
+        <category>机器学习</category>
+        
+      </item>
+    
+      <item>
+        <title>如何快速使用MathJax</title>
+        <description>&lt;p&gt;在博客框架中的head标签下加上如下代码&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nt&quot;&gt;&amp;lt;script &lt;/span&gt;&lt;span class=&quot;na&quot;&gt;type=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;text/javascript&quot;&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;src=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML&quot;&lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&amp;gt;&lt;/span&gt;
+&lt;span class=&quot;nt&quot;&gt;&amp;lt;/script&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;书写MathJax支持的公式&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\sum_{i=1}^{m} i&lt;/script&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\frac{1}{a}&lt;/script&gt;
+
+&lt;p&gt;&lt;script type=&quot;math/tex&quot;&gt;E = m\cdot c^2 \label{eq:mc2}&lt;/script&gt;&lt;br /&gt;
+&lt;!--more--&gt;&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_{j|y=1}  = \frac{\sum_{i=1}^{m}1+1}{ \sum_{i=1}^{m} 1 +2}&lt;/script&gt;
+
+&lt;p&gt;这样就可以实现在博客中显示公式图片了。&lt;/p&gt;
+</description>
+        <pubDate>Tue, 11 Jul 2017 13:40:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/use-Tex/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/use-Tex/</guid>
+        
+        <category>MathJax</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>Simulink／Stateflow上的一个整合的测试用例生成工具 - 论文笔记</title>
+        <description>&lt;p&gt;最近实验室又有新的研究任务，这次与Simulink/ Stateflow 模型的测试用例自动生成相关，与传统的软件测试中的测试用例相同，这里也有覆盖率这一标准，那么如何提高模型的测试用例的覆盖率呢，这篇博文作为相关论文的阅读笔记，了解了一个生成工具….&lt;/p&gt;
+
+&lt;p&gt;首先了解一下几种该领域的测试用例生成技术以及一些有名的工具。&lt;br /&gt;
+## 测试用例生成技术&lt;br /&gt;
+对于Simulink/ Stateflow diagram的测试生成和验证有许多不同的方法。下面对这些方法进行一些梳理。&lt;/p&gt;
+
+&lt;h3 id=&quot;regression-testing-or-randomised-test-generation-&quot;&gt;Regression testing or randomised test generation （回归测试或随机化测试生成）&lt;/h3&gt;
+
+&lt;p&gt;这类方法是比较流行的一类方法，例如Reactis工具就是一个产生随机的Simulink/Stateflow模型的测试的工具。atpathy et al. 则是从Simulink/Stateflow中基于离散随机测试并且利用一系列模式引导的启发式非线性块来产生测试用例。Oh et al利用遗传学算法为Simulink/Stateflow提出了一种转移覆盖率测试。虽然在随机测试上的技术有一定的发展，但是还是很难得到一个接近全覆盖的测试，并且大量的启发算法也许还会阻碍大量Simulink块的生成。&lt;/p&gt;
+
+&lt;h3 id=&quot;model-checking-based-automated-test-generation-approach-&quot;&gt;Model-checking based automated test generation approach （基于自动模型检查的测生成技术）&lt;/h3&gt;
+
+&lt;p&gt;该技术将测试对象的否定的反例作为测试用例。例如Mathworks的Simulink Design Verifier工具就提供了基于自动模型检测测试生成技术为Simulink/Stateflow模型生成测试用例，并限制一些块不能被分析，以及只能够实现块层次的覆盖。完成转换Simulink/Stateflow到形式语言的实验室叫做符号分析实验室（Symbolic Analysis Laboratory - SAL），他们是基于模型检测实现的。除此之外还有很多团队，例如Marre and Arnould、Sofronis and co-workers、Miller et al等，都用到了Lustre。Simulink Design Verifier用一个叫做Prover，但它对于生成非线性方程的测试用例有一定的缺陷。微软的Z3是一个能解决非线性方程的成熟的证明器。&lt;br /&gt;
+&lt;!--more--&gt;&lt;br /&gt;
+### Constraint-solving based automated test generation approach（基于解决限制的自动测试生成技术）&lt;/p&gt;
+
+&lt;p&gt;该技术应用在 Gotlieb et al.上。而对于由NASA开发的Symbolic PathFinder，结合了符号执行和解决限制来进行测试的自动生成。利用该技术的流行的工具还有CPLEX , MATLAB , Maple 等。&lt;/p&gt;
+
+&lt;h3 id=&quot;mutation-based-test-generation-approach&quot;&gt;Mutation-based test generation approach（基于突变的测试生成方法）&lt;/h3&gt;
+&lt;p&gt;该技术引入错误并在产生的测试用例中展示错误。&lt;/p&gt;
+
+&lt;p&gt;当然还有一些混合的方法技术，那么在这一领域中比较重要的商业工具有：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;来自Mathworks的Simulink Design Verifier (SDV)&lt;/li&gt;
+  &lt;li&gt;来自Reactive Systems Inc的Reactis&lt;/li&gt;
+  &lt;li&gt;来自T-VEC Technologies的T-VEC&lt;/li&gt;
+  &lt;li&gt;来自Honeywell International的HiLiTE&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;介绍&lt;/h2&gt;
+
+&lt;p&gt;在汽车和航天航空产业中，开发控制软件的主要的建模方法就是Simulink/Stateflow (SL/SF)。在基于模型的测试中，由一个设计模型而得到的测试用例通常可以用来体现模型代码的一致性。像在一些安全标准中就会要求这样的基于模型的测试，例如ISO 26262，这样一来可以体现出软件的符合性。而这篇论文用的测试工具能够帮助得到更好的覆盖能力的测试用例。这个工具叫做SmartTestGen，它整合了不同的测试生成技术。因此这篇论文就是讨论这个工具以及那些不同的测试技术——随机测试、限制解决、模型检查和启发式方法。这些在上面一节中也提到了一些。然后用了20个产品模型作为例子，对比了其他两个商用的测试生成工具。&lt;/p&gt;
+
+&lt;p&gt;那么这个整合了不同生成测试引擎的测试工具，自然是每个引擎利用了一种测试技术。这个工具的使用了一个特别的序列，以便成本低的目标可以早地被一个成本较低的引擎覆盖。&lt;/p&gt;
+
+&lt;p&gt;这个工具的蛀主要创新点是：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;设计和实现了这样的一种整合型的测试生成工具，这些不同的生成测试引擎都是由它的团队开发的。&lt;/li&gt;
+  &lt;li&gt;评估了该工具的原型，跑了20个工程模型，得到的结论就是性能要好于其它两个商业的测试生成工具。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;section-1&quot;&gt;不同的生成测试引擎&lt;/h2&gt;
+
+&lt;p&gt;来自Reactive Systems Inc的Reactis、来自BTC的Embedded Tester以及Mathworks的Simulink Design Verifier (SDV)是一些商用的自动生成测试用例的工具。Reactis tester结合了随机测试与引导仿真技术。Embedded Tester中，首先会将模型导入TargetLink代码生成工具，然后分析生成的C代码产生测试用例。而SDV的主要功能就是证明SL／SF模型的特性，该工具还能够展现模型元素的不可达性。&lt;/p&gt;
+
+&lt;p&gt;AutoMOTGen是一个非商业的基于模型检测技术的测试生成工具，REDIRECT是一个集随机测试、定向自动随机测试DART、混成具体与符号测试于一体的测试生成工具。（note：这里翻译的词不一定很准确）&lt;/p&gt;
+
+&lt;p&gt;接下来主要讨论SMARTTESTGEN这个工具中用到的生成技术&lt;/p&gt;
+
+&lt;h3 id=&quot;a-&quot;&gt;A 基于模型检测的测试生成技术&lt;/h3&gt;
+
+&lt;p&gt;将SL／SF的子系统模型转换为SAL[1]模型，记住在SL／SF模型上的覆盖标准，SAL模型带有一些诱导变量，一个诱导变量的可达性体现了一个模型元素的可达性；可达的轨迹就变成了这些测试用例[2]。这个技术同样可以用来证明这些模型元素的不可达性。&lt;/p&gt;
+
+&lt;h3 id=&quot;b-&quot;&gt;B 随机测试技术&lt;/h3&gt;
+
+&lt;p&gt;给定输入类型和它们的范围，模型产生随机测试序列并进行仿真检查它们是否覆盖模型元素。每一个序列的大小和数量会很明显地影响着模型的覆盖率。&lt;/p&gt;
+
+&lt;h3 id=&quot;c-&quot;&gt;C 局部限制解决&lt;/h3&gt;
+
+&lt;p&gt;为了在模型中能够覆盖例如一个决策分支点处的目标，我们可以对在该目标上的变量做一小部分向后的切片来确定相关的区间、外面的输入变量以及获得能够被解决去寻找一个测试序列的一个限制。限制解决也能够于随机测试混合。&lt;/p&gt;
+
+&lt;p&gt;下图a中展现了带有分离的integrator的Simulink模型。xi代表的的是变量x在时间点i时的值（i&amp;gt;=1），假设初始化integrator的值，例如令x0为0，并且输入范围为0..2，那么我们就有以下等式：对于i&amp;gt;=1,xi = xi-1 + ai;当 xi&amp;gt;=100,yi = true 否则就是false。假设我们以一个随机的输入序列[a1 , . . . , a100 ]来仿真实验，结果我们有 x100 = 90 并且 y100 = &lt;br /&gt;
+false。在之前的随机序列之后再立即使用符号序列。[a1‘，..，a10’]，我们可以得到一下限制条件：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;x′1 = x100 +a′1 ∧ x′2 = x′1 +a′2 ∧ ... ∧ x′10 =x′9 +a′10∧ (x′1 ≥100 ∨ .. ∨ x′10 ≥100)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;要使以上的限制条件满足，那么我们就得到[a1‘，..，a10’]的值。假定我们将这些符号值替换成具体的值，那么新的测试序列[a1, . . . , a100]#[a′1, . . . a′10]  得使得输出y为true，这里的#是指串连符号。那么这里就结合了随机与限制的解决方式来覆盖目标。由于我们并没有在初始值时就使用限制解决，而是在测试串上的某个位置之后开始使用，我们就称之为局部限制解决。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/paper_data/1_simulink.png?raw=true&quot; alt=&quot;Example models to illustrate local constraint solving and heuristics&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;d-&quot;&gt;D 基于启发式引导覆盖&lt;/h3&gt;
+
+&lt;p&gt;上图b中，表示的是一个Simulink的系统，S1、S2是其子系统。假设一个随机的输入序列 [(a1, b1), . . . (a10, b10)] 使得 x = true，或者也可以是一个通过限制的一个序列。类似的，假设存在一个测试序列 [(a1 ‘, b1 ’), . . . (a10‘ , b10’ )]使得 y = true。由图可以观察到计算x和y的输入集是不相交的。因此我们应用启发式得到输入序列[(a1, b1‘), . . . (a10, b10’)] 而该序列使得AND块的输出为true。&lt;br /&gt;
+这里的启发式方法是一系列分析目标的模式并且唤起适当的启发式方法来找到测试序列分别覆盖不同的目标值，更多关于启发式的细节可以参考[3]。&lt;/p&gt;
+
+&lt;h2 id=&quot;smarttestgen-&quot;&gt;SMARTTESTGEN 的实现&lt;/h2&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/paper_data/2_simulink.png?raw=true&quot; alt=&quot;SmartTestGen Tool Architecture&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;上图展示的是该工具的一个整体框架，将一个SL／SF模型以及一个测试详细说明作为输入，然后输出一套测试用例。它使用了我们上面介绍的4个测试生成引擎。STGen有三个主要组件：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;集中控制信息表&lt;/li&gt;
+  &lt;li&gt;测试生成引擎集合&lt;/li&gt;
+  &lt;li&gt;管理监督模块&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;管理监督模块唤起适当的测试用例生成引擎，接受由不同引擎生成的测试用例，并且更新集中控制信息表。下面介绍一下这几个组件。&lt;/p&gt;
+
+&lt;h3 id=&quot;centralized-information-table&quot;&gt;集中控制信息表 （Centralized Information Table）&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/paper_data/3_simulink.png?raw=true&quot; width=&quot;500&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;这个控制信息表包含了能够唤起有效测试生成的测试生成引擎的所有数据。这张表由管理监督模块维护，下表就是它的基本结构。&lt;/p&gt;
+
+&lt;p&gt; 第一列是块处理，在模型中每个块有独一无二的标号；这些块中包含覆盖的候选数据。接下里的三列分别是决策(D),条件（C）以及 MC/DC 覆盖。表中的每一个块都包含许多与目标相关的覆盖点。例如，逻辑与关系块只由决策覆盖测量，并且每个只有两个目标。第5列包含了特殊块的路径；一条路径是一个字符串等同于特殊块的位置。一条路径表明了块的嵌套级别，同时也辨别出用什么技术来覆盖这个块。第7列列出了覆盖相关块的一系列测试用例。&lt;/p&gt;
+
+&lt;p&gt;给定一系列在模型中的SL/SF块，和它们的内容，一个分类算法可以根据数据估计哪个测试生成引擎可以覆盖哪个目标；这种规则是从经验中得知的，用户也可以选择无视这样的规则，第6列存储了这些信息。&lt;/p&gt;
+
+&lt;h3 id=&quot;test-generation-engines&quot;&gt;测试生成引擎集合 （Test generation engines）&lt;/h3&gt;
+
+&lt;p&gt;在STGen中，我们使用了三个测试生成引擎，它们实现了之前所提到的四个测试生成技术。&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;随机测试生成引擎 （random test generation engine）&lt;br /&gt;
+  基于输入的类型和范围生成随机的输入序列&lt;/li&gt;
+  &lt;li&gt;模型检测引擎 （model checking engine）&lt;br /&gt;
+  基于SAL的模型生成测试引擎，利用模型检测技术覆盖给定的目标&lt;/li&gt;
+  &lt;li&gt;限制解决与启发式引擎 （onstraint solving and heuristics engine） &lt;br /&gt;
+  利用限制解决与启发式方法拓展给定的测试用例来覆盖给定的目标&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;限制解决与启发式方法引擎整合在了一起，那是因为限制解决需要在启发式中被唤起。&lt;br /&gt;
+默认的唤起的顺序是 —— 随机、启发、模型检测&lt;/p&gt;
+
+&lt;h3 id=&quot;supervisor-module&quot;&gt;管理监督模块 （Supervisor Module）&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/paper_data/4_simulink.png?raw=true&quot; width=&quot;450&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;上面也刚提到，这个模块通过选择不同的测试生成引擎来控制测试生成进程。上图是管理监督模块的主要活动。&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;initializeCovTable()&lt;br /&gt;
+该活动得到SL/SF模型和用户给定的测试详细说明，找到模型中的目标，并初始化信息表CI_Tab中的记录。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;instrumentModel()&lt;br /&gt;
+接着该活动instruments模型，instrumentation被用来捕获与仿真运行相关的所有信息。根据外部输入和它们范围，接下来就能获得随机输入序列（测试套装TS1）。然后instrumentation模型就仿真这些覆盖目标的测试用例。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;updateCovTable()&lt;br /&gt;
+该活动相应地更新CI_Tab。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;classifyBlocks()&lt;br /&gt;
+填满CI_Tab的第6列。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;selctEngine()&lt;br /&gt;
+自然地在表中还会有未覆盖的目标，那么该活动就会从未使用的引擎中选择合适的测试生成引擎。表中的第6列提供了这一选择的信息，最大可能覆盖做多目标的引擎就会被选择。然后这个被选中的引擎就会来覆盖这些目标。此时，当前的测试生成引擎就会产生一些新的测试用例(TS2)；然后已覆盖记录表与当前的测试套装就会相应地更新。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;reClassifyBlocks()&lt;br /&gt;
+那么现在就已经有些目标已被覆盖了，那么表中第6列就要更新数据。然后进行下一次选择知道所有的测试生成引擎都被选择了。&lt;br /&gt;
+那么到了最后模型检测引擎再一次被调用，弄清楚是否能证明那些未被覆盖到目标是不可达的。&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;最后我们就能够得到对于所有覆盖目标的测试用例套装，以及那些不可达的目标的集合。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-2&quot;&gt;结论&lt;/h2&gt;
+
+&lt;p&gt;STGen是利用Matlab脚本语言 - m-script实现的。用了20个SL/SF设计的模型来在STGen上进行测试用例生成。对比了其它两个工具（Reactis 和 Embedded Tester），对比数据在原文中有清晰的图。那么最终的结果就是在覆盖上，相对来说有了更好的数据。不可达报告也提高了测试准确性。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-3&quot;&gt;参考资料&lt;/h2&gt;
+
+&lt;p&gt;[1]SRI International.&lt;a href=&quot;http://sal.csl.sri.com&quot;&gt;SAL home page&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;[2]Gadkari A, Yeolekar A, Suresh J, Ramesh S, Mohalik S, Shashidhar KC.&lt;br /&gt;
+AutoMOTGen: Automatic Model Oriented Test Generator for Embedded&lt;br /&gt;
+Control Systems. Proceedings of the CAV08, 2008; 204-208.&lt;/p&gt;
+
+&lt;p&gt;[3]Satpathy M, Yeolekar A, Ramesh S. 2008. Randomized Directed Testing (REDIRECT) for Simulink/Stateflow Models, ACM/IEEE International Conference on Embedded Software (EMSOFT’08), Atlanta.&lt;/p&gt;
+
+&lt;p&gt;[4]原文 &lt;a href=&quot;https://www.google.com.hk/url?sa=t&amp;amp;rct=j&amp;amp;q=&amp;amp;esrc=s&amp;amp;source=web&amp;amp;cd=3&amp;amp;cad=rja&amp;amp;uact=8&amp;amp;ved=0ahUKEwiq5eXZrs7TAhVE_mMKHaYPBYoQFggzMAI&amp;amp;url=https%3A%2F%2Fpdfs.semanticscholar.org%2F769f%2Fa6ee770bc52fbdfe9c0cf785e91889223459.pdf&amp;amp;usg=AFQjCNGfFGigT06Bx9gI-tNR9MbZ5O2J-w&amp;amp;sig2=ggk-MhFxMBU0wZSlHK6NqA&quot;&gt;“An Integrated Test Generation Tool for Enhanced Coverage of Simulink/Stateflow Models”&lt;/a&gt;&lt;/p&gt;
+
+</description>
+        <pubDate>Mon, 01 May 2017 13:40:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/introduction-to-simulink-test-generation/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/introduction-to-simulink-test-generation/</guid>
+        
+        <category>Simulink</category>
+        
+        <category>Test Generation</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>用Clang静态分析工具寻找bug</title>
+        <description>&lt;p&gt;Clang 静态分析工具能够通过分析源代码自动寻找出其中的bug。&lt;/p&gt;
+
+&lt;h2 id=&quot;bug&quot;&gt;利用编译技术寻找Bug&lt;/h2&gt;
+
+&lt;h3 id=&quot;section&quot;&gt;编译时警告&lt;/h3&gt;
+
+&lt;p&gt;通过clang一个代码文件可以得到一个编译警告，可以看到clang终端编译并详细地说明了代码在哪儿出现了问题。&lt;/p&gt;
+
+&lt;h3 id=&quot;section-1&quot;&gt;静态分析&lt;/h3&gt;
+
+&lt;p&gt;静态分析技术并不是软件测试的替代品，在这次的演讲中将提供对这个工具的一个上层的概述。&lt;br /&gt;
+由于由编译器警告所展现出来的代码检查是有内在缺陷的，也就是说编译结果中的信息是有限的，甚至有的时候仅仅提供一些没有意义的信息。但是往往我们恰恰需要有关程序的更加具体而详细的错误信息，也就是说程序员们不单单对错误信息出现在哪里感兴趣，甚至是想知道什么类型的错误，例如，内存泄漏、缓冲过载、逻辑错误等等。&lt;/p&gt;
+
+&lt;p&gt;那么之前也许仅是对程序进行测试从而找到程序路径上可能犯下的错误，但这需要十分具体的测试用例以及测试相关人员丰富的测试经验。那么提到静态测试技术它有三个好处：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;可以提前发现这些错误，因为如果错误遗留到之后的话，那时修改可能会对工程造成很大的影响，所以越是早发现这些错误，那么修改它们的代价也就越小；&lt;/li&gt;
+  &lt;li&gt;与此同时静态分析能够系统地检查代码的每一个角落；&lt;/li&gt;
+  &lt;li&gt;不需要测试就可以寻找到错误；静态分析特别擅长那些可能在实际代码中不怎么运行到的分支的错误，而往往这些是测试得相对不怎么完全的地方。因此不需要测试是非常强大和有用的。并且有些情况下的代码错误是很难通过测试发现的。那么静态分析就对那些很难用测试手段发现的错误有很好的效果。当然，静态分析绝不是代替测试，因为肯定会有许多静态分析无法检测出来的错误。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;this-talk-clang-static-analyzer&quot;&gt;This Talk: Clang “Static Analyzer”&lt;/h3&gt;
+
+&lt;h4 id=&quot;demo&quot;&gt;Demo&lt;/h4&gt;
+&lt;p&gt;可以看另一篇&lt;a href=&quot;https://alvinsjq.github.io/2017/install_clang_ststic_analyzer/&quot;&gt;博文&lt;/a&gt;。&lt;/p&gt;
+
+&lt;h4 id=&quot;how-does-static-analysis-work&quot;&gt;How does static analysis work?&lt;/h4&gt;
+
+&lt;p&gt;例如这样的一个简单的函数：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;f&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; 
+        &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;%d&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;在函数f中x最先声明，那么如果y为0的话，我们实际上不能为x进行赋值，那么在编译器之后就会警告我们x可能没有初始化。那么具体里面发生了什么呢？&lt;br /&gt;
+&lt;!--more--&gt;&lt;br /&gt;
+[17/70]可以看下图，是这段代码的一个控制流图，意思就是说，在clang本质中，c代码可能看起来就像是这样子的。&lt;/p&gt;
+
+&lt;p&gt;[18/70]这里具体是怎么一回事呢？其实就是编译器看到了从顶部到底部过程中的这条边，然后在上面定义的x并没有被赋值，但在最后却要将x的值返回。&lt;/p&gt;
+
+&lt;p&gt;[19/70]因此这条路径呢就会发生我们所说的一个内存泄漏。&lt;/p&gt;
+
+&lt;p&gt;[21/70]那么如果现在要去修改这个错误的话，我们就得加上一个保护条件，&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;f&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; 
+        &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;%d&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;             &lt;span class=&quot;c1&quot;&gt;//add a guard
+&lt;/span&gt;        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;[23/70]现在的程序控制流图也稍微改变了一点，但是有趣的是，即使是这样，用编译器编译之后还是会出现警告：x可能没有初始化。&lt;/p&gt;
+
+&lt;p&gt;[24/70] 人们往往会忽视掉这样的一个警告，那么可能的原因就是在这样的情况下，其实这个信息并没有什么意义。（note：可以用分析器测试一下有没有warning！）那么具体是怎么回事呢？&lt;/p&gt;
+
+&lt;p&gt;[25/70] 就这里的控制流图而言，一种情况可能就是每一个if的分支都直接执行后面的语句(taken)，也就是执行右边的分支，那么肯定需要这里的y为0。&lt;/p&gt;
+
+&lt;p&gt;[26/70] 另一种情况就是当y不为0的时候（随便一个不为0的y都可以），就会走左边的分支，这样也是一条可行的路径。&lt;/p&gt;
+
+&lt;p&gt;[28/70] 那么问题就在于不管是gcc还是clang，提示warning的时候都是指的是这样的一条路径，显然这条路即要要求y为0，又要要求y不为0，显然是一条不可行的路径。而编译器提示的警告出现在了一条不可能的路径上。&lt;/p&gt;
+
+&lt;h3 id=&quot;false-positives-bogus-errors&quot;&gt;False Positives (Bogus Errors)&lt;/h3&gt;
+&lt;p&gt;[32/70] 因此我们对这样的情况取了个名字叫做False Positives（Bogus Errors），可以翻译为假错误。它们可能会在各式各样的情况下发生，比如刚才展示的那条不可行的路径。而另一方面，不管你是调用的哪一种编译器，编译器分析程序总不是十分充分的，例如它是怎样从外面调用进来的等等，那么也许可以通过我们告诉编译器更多的信息来解决这个问题，但是最后我们也许只能做一个错误的假设；那么减少这样的一种false Positive的方法，其中一个就是要有更多的精确的分析，但其实还是很难完全消除这样的一种False Positives。&lt;/p&gt;
+
+&lt;h3 id=&quot;flow-sensitive-analyses&quot;&gt;Flow-Sensitive Analyses&lt;/h3&gt;
+&lt;p&gt;[34/70]正常的编译器是做什么的呢？其实这里是有一个名字的，也就是叫做数据流-敏感分析，也就是说，编译器能够进行值的一些推理;&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;     &lt;span class=&quot;cm&quot;&gt;/*Flow-sensitive analyses reason about flow of values*/&lt;/span&gt;
+     &lt;span class=&quot;n&quot;&gt;y&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+     &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;y&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  &lt;span class=&quot;c1&quot;&gt;// x == 3
+&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;[35/70]但是不能够从路径中推断出准确的值，就例如这样的一种情况，其实编译器并不能推理出++x时，x的准确值是多少。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;    &lt;span class=&quot;cm&quot;&gt;/*No path-specific information*/&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;x&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;     &lt;span class=&quot;c1&quot;&gt;// x == ?
+&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;   &lt;span class=&quot;c1&quot;&gt;// x == 2
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;y&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;       &lt;span class=&quot;c1&quot;&gt;// x == ?, y == ?
+&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;[37/70]LLVM的静态单赋值(SSA)形式就是专为数据流敏感算法而设计的，而这样的好处是它们可以被用在优化和编译器警告上, 并且这是十分重要的，因为我们肯定想要我们程序能够在一定的时间内编译好。但是呢，在寻找bug上并不总是最好的。&lt;/p&gt;
+
+&lt;h3 id=&quot;path-sensitive-analyses&quot;&gt;Path-Sensitive Analyses&lt;/h3&gt;
+&lt;p&gt;[39/70]因此呢，我们这里所实现的叫做路径敏感分析（Path-Sensitive Analyses&lt;br /&gt;
+），那么从条件分支上追踪信息，然后就能得到相对来说比较复杂的式子，例如说，下面这种情况，如果你从这样的分支中获得信息，那么最终需要判断x和y的值是不是都是1或者都是2。因此这里就取每一种可能的路径的析取。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;x&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;        &lt;span class=&quot;c1&quot;&gt;// x == 1
+&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;      &lt;span class=&quot;c1&quot;&gt;// x == 2
+&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;y&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;          &lt;span class=&quot;c1&quot;&gt;// (x == 1, y == 1) or (x == 2, y == 2)
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;[40/70] 那么如果用这样的方式再去跟踪之前的false positive的没有初始化的例子，路径敏感分析就只会选择2条路径，并且不会出现false positive的错误警告。&lt;/p&gt;
+
+&lt;p&gt;[41/70]而真正的问题就在于，一旦开始追踪代码中所有的独立的路径，你会受到很大的阻碍，并且当你开始执行循环，那么之后的问题可能变的更加复杂，但是我们还是有方法可以去解决的，例如路径合并等使得这个问题变的容易处理。&lt;/p&gt;
+
+&lt;p&gt;但是，在寻找错误的空间中，我们想要放弃两种东西，一个就是完整性，我们想要将其限制在工作之外，也就是我们不可能寻找出你的程序中的所有的bug，或者说可能不会走遍你代码中的所有的路径；而另一个就是需要回到刚才讲到的false positives的合理性，我们没有必要证明说你的程序是不存在bug的，因为这功能其实并不是一定要在分析工具中出现的，不过只是可以灵活地去选择它，因为这在编译中其实是没有必要做的，但是这儿的目标就是能够寻找到bug然后修正它们，而不是生成使得可执行机器语言。&lt;/p&gt;
+
+&lt;p&gt;[42/70]而在clang静态分析器中，这两种分析方法都使用到了。&lt;/p&gt;
+
+&lt;h3 id=&quot;checker-results&quot;&gt;Checker Results&lt;/h3&gt;
+&lt;p&gt;[60/70]那么这样的一个工具一开始是在Apple内部使用，在2008年的WWDC上发布。那么接着讲一些实现的细节。&lt;/p&gt;
+
+&lt;h3 id=&quot;why-analyze-source-code&quot;&gt;Why Analyze Source Code?&lt;/h3&gt;
+&lt;p&gt;[61/70]那么究竟为什么分析源代码？如果分析LLVM IR? 其实虽然LLVM IR有很多信息，当然这些都仅仅是底层的信息，但同时也抹去了大量在高级语言中表达出的信息，另一方面我们是在找错误，实际上你们也只对高层次的信息感兴趣。总的说就是，我们关注的并不是生成机器语言，而是产生一些有意义的信息好能够让用户可以真的去使用来修理他们的问题。那如果用户不知道怎样修理，那就完全没有意义了。因此我们实际上需要大量源代码层次上的信息，例如说宏指令等，那么所有llvm层的信息都不必提供。&lt;/p&gt;
+
+&lt;h3 id=&quot;clang-libraries&quot;&gt;Clang Libraries&lt;/h3&gt;
+&lt;p&gt;[64/70]接着看一下Clang的软件库，首先是Analysis是为做一些数据流分析提供的一歇基本的解决方法，同时也是使用Rewriter来做一些HTML的诊断，这里会生成带有源代码的htmls，也就是插入一些html标签。&lt;/p&gt;
+
+&lt;h3 id=&quot;section-2&quot;&gt;最后贴上一个总结：&lt;/h3&gt;
+&lt;p&gt;**Source-level Control-Flow Graphs (CFGs) **&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Flow-sensitive dataflow solver&lt;/strong&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Live Variables&lt;/li&gt;
+  &lt;li&gt;Uninitialized Values&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;**Path-sensitive dataflow engine **&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Retain/Release checker&lt;/li&gt;
+  &lt;li&gt;Logic bugs (e.g., null dereferences)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;strong&gt;Various checks and analyses&lt;/strong&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Dead stores&lt;/li&gt;
+  &lt;li&gt;API checks&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;以上就是Apple早期对clang static analyzer的一个介绍的总结，由于自己也是在嘘唏，所以整理的不对的地方欢迎指正。&lt;/p&gt;
+
+&lt;h3 id=&quot;section-3&quot;&gt;参考资料&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;https://www.youtube.com/watch?v=4lUJTY373og&amp;amp;t=102s&quot;&gt;2008 LLVM Developers Meeting - Finding Bugs with the Clang Static Analyzer 1 of 5&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://www.youtube.com/watch?v=4lUJTY373og&amp;amp;t=102s&quot;&gt;2008 LLVM Developers Meeting - Finding Bugs with the Clang Static Analyzer 2 of 5&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://www.youtube.com/watch?v=4lUJTY373og&amp;amp;t=102s&quot;&gt;2008 LLVM Developers Meeting - Finding Bugs with the Clang Static Analyzer 3 of 5&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://www.youtube.com/watch?v=4lUJTY373og&amp;amp;t=102s&quot;&gt;2008 LLVM Developers Meeting - Finding Bugs with the Clang Static Analyzer 4 of 5&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://www.youtube.com/watch?v=4lUJTY373og&amp;amp;t=102s&quot;&gt;2008 LLVM Developers Meeting - Finding Bugs with the Clang Static Analyzer 5 of 5&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://www.google.com.hk/url?sa=t&amp;amp;rct=j&amp;amp;q=&amp;amp;esrc=s&amp;amp;source=web&amp;amp;cd=1&amp;amp;cad=rja&amp;amp;uact=8&amp;amp;ved=0ahUKEwjyz52s48TTAhVPzGMKHRSFCo8QFggiMAA&amp;amp;url=http%3A%2F%2Fllvm.org%2Fdevmtg%2F2008-08%2FKremenek_StaticAnalyzer.pdf&amp;amp;usg=AFQjCNEGUpaoyYb3MFI7ZlOlDoPFSVhiEg&amp;amp;sig2=un7J97TXKHCfi_IhXddU3Q&quot;&gt;PPT的链接&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+</description>
+        <pubDate>Tue, 25 Apr 2017 13:40:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/findbugs-with-clang_ststic_analyzer/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/findbugs-with-clang_ststic_analyzer/</guid>
+        
+        <category>clang</category>
+        
+        <category>static analyzer</category>
+        
+        <category>LLVM</category>
+        
+        <category>编译原理</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>用Event-B对操作系统的内存管理模块进行建模</title>
+        <description>&lt;h4 id=&quot;event-b-&quot;&gt;Event-B 形式化建模介绍&lt;/h4&gt;
+
+&lt;h5 id=&quot;event-b&quot;&gt;Event-B模型构建方法&lt;/h5&gt;
+
+&lt;p&gt;【first page】&lt;/p&gt;
+
+&lt;p&gt;首先介绍一下什么是Event-B，Event-B方法是由欧洲科学院院士阿布瑞尔发明的一种形式化建模方法，这个方法基于一阶逻辑和集合理论，可以进行系统层次的建模和分析。那么Event-B建模方法大致有这么几个主要环节——需求，建模，精化以及证明。&lt;/p&gt;
+
+&lt;p&gt;传统的软件开发过程中，软件需求往往不是很精确，而Event-B建模过程中的需求设计是十分严格和规范的，哪怕它也是用非形式化语言来表示的，由于这些语言往往有着很强的逻辑关系，可以说是对整个系统进行了十分规范和准确的无歧义的描述，这个在之后的例子中可以看到。&lt;/p&gt;
+
+&lt;p&gt;其次就是建模过程，当然在建模之前我们还需要设计一个精化的策略，这样能够帮助我们有条不紊地实现后续的精化。&lt;/p&gt;
+
+&lt;p&gt;而精化的过程能够让我们建立的模型越来越具体，越来越逼近我们最终想要的，直到最后满足所有的需求。&lt;/p&gt;
+
+&lt;p&gt;建模过程中我们需要借助Event-B的开发工具Rodin平台来证明模型的正确性。我们需要保证在每一个事件中的不变式是能维持的、或者能够证明模型中是不会出现死锁的。这样才能确保最后的精化模型是安全可靠的。&lt;/p&gt;
+
+&lt;p&gt;【new page】&lt;/p&gt;
+
+&lt;p&gt;Event-B作为一个建模方法，那它的模型是怎样的一个结构呢？可以看下这幅图，Event-B的模型包括了机器和环境。那么机器包括了变量、不变式、定理、事件等建模元素，环境包括了集合、常量、公理、定理等建模元素。这些元素都是用集合、一阶逻辑来表示的。也就是说，机器中包含了模型的动态元素，而在环境中包含了模型的静态元素。&lt;/p&gt;
+
+&lt;p&gt;那么对于一个模型而言，机器与环境之间存在着一些关系，如图所示，机器与机器之间会存在精化关系，环境与环境之间会存在延伸关系，而机器与环境之间又会存在可见关系。&lt;br /&gt;
+&lt;!--more--&gt;&lt;br /&gt;
+【new page】&lt;/p&gt;
+
+&lt;p&gt;Rodin平台作为Event-B的建模开发环境，可以说，他让建模也有了编程的感觉，而Rodin中的证明器让我们对设计的模型进行debug调试成为了可能。&lt;/p&gt;
+
+&lt;h4 id=&quot;section&quot;&gt;案例：内存管理模块建模&lt;/h4&gt;
+
+&lt;p&gt;&lt;strong&gt;那么Event-B这套形式化方法具体是如何去构建一个复杂系统的呢，这里给大家展示一个例子，也就是用Event—B的方法对一个实时操作系统中的内存模块进行形式化的建模。&lt;/strong&gt;这种建模方式往往对系统功能需求作出很严格的要求。这也是保证整个系统安全可靠的第一步。&lt;/p&gt;
+
+&lt;p&gt;【new page】&lt;/p&gt;
+
+&lt;h5 id=&quot;section-1&quot;&gt;功能需求层&lt;/h5&gt;
+
+&lt;p&gt;那么如何设计出这样的安全可靠的需求呢？就拿这个例子而言，我们需要对内存管理的需求分成这几个方面。一是内存和内存块的物理特性以及已被分配和释放的内存块的特点，二是分配和释放内存块的操作，三是实现管理空闲的内存块。那么具体怎样去描述这些方面的需求呢？&lt;/p&gt;
+
+&lt;p&gt;【new page】&lt;/p&gt;
+
+&lt;p&gt;例如内存需要满足什么要求。很显然，这个系统是管理着该操作系统的内存的，将此作为功能需求1；其次内存地址是一个有限的自然数区间，并且其实地址为0，将此作为系统的环境需求1。&lt;/p&gt;
+
+&lt;p&gt;对于块，也需要有类似的需求设计：一个块的内存是连续的，以及不会存在空的内存块。这些都是需要满足的环境需求。&lt;/p&gt;
+
+&lt;p&gt;【new page】&lt;/p&gt;
+
+&lt;p&gt;再例如，系统要求每一个块要么是已被占用，要么就是是空闲的。以及一个空闲块总是被占用的块包围。再看一个具体的释放内存块的操作需求，如果所要释放的块不是一个正在被占用的内存块，那么释放该内存块失败，否则就成功。&lt;/p&gt;
+
+&lt;p&gt;因此，通过这样的一种，对系统的环境和操作进行严格的需求定义，并将其放入一个表格中并标上序号的方式就可能得到一个相对来说更加安全与可靠的需求模型。而这就为接下来的整个可靠系统的设计带来了方便。&lt;/p&gt;
+
+&lt;h5 id=&quot;section-2&quot;&gt;软件设计层&lt;/h5&gt;
+
+&lt;p&gt;【new page】&lt;/p&gt;
+
+&lt;p&gt;对于内存管理模块的软件设计模型，重点就是利用之前提到的精化策略。那么具体是怎样一个过程呢？既然是一个策略，其实主要就是处理一件事，这些需求该怎样在模型中一步一步得到满足。例如内存管理这个例子，就是需要定义内存的静态的状态和基本的操作。那么设计精化策略时就需要在初始状态模型到第五次精化模型期间定义并精化基本的操作。而后在第六到第七次精化中实现分配内存和释放内存的具体功能，也就是调用之前模型里的操作。在第八到第十次精化中再加入搜索算法得到最后的精化模型。&lt;/p&gt;
+
+&lt;p&gt;【new page】&lt;/p&gt;
+
+&lt;p&gt;我们可以看这张表，它将每一次精化所满足的需求呈现了出来，通过之前提到过的，增加不变式，引入新事件等方法一步一步对初始模型进行精化，直到满足了所有的需求。从而确保了整个模块的建模过程是一个越来越逼近于完整的系统需求的过程，软件设计与需求设计的一致性因此得到了满足。&lt;/p&gt;
+
+&lt;h5 id=&quot;section-3&quot;&gt;软件实现层&lt;/h5&gt;
+&lt;p&gt;【new page】&lt;/p&gt;
+
+&lt;p&gt;整个建模过程实在Rodin平台上进行的，刚才也大致了解了这个工具，基于eclipse使得建模也有了编程的味道。在该平台上建立好模型后它会对不变式进行自动证明，对于不能自动证明的不变式，我们只需要在证明器中引导它证明就行。&lt;/p&gt;
+
+&lt;p&gt;【new page】&lt;/p&gt;
+
+&lt;p&gt;证明完全的模型就可以通过自动代码生成工具生成部分代码，无法自动生成的需要人工实现。&lt;/p&gt;
+
+&lt;h4 id=&quot;section-4&quot;&gt;总结&lt;/h4&gt;
+
+&lt;p&gt;【new page】&lt;/p&gt;
+
+&lt;p&gt;因此，在操作系统内存模块建模的案例中可以看出Event-B方法在可信软件开发中的优势：&lt;/p&gt;
+
+&lt;p&gt;在可信系统功能层上进行严格的需求规范，通过得到功能性需求和环境需求并进行编号，能够详细地描述一个复杂系统的需求。&lt;/p&gt;
+
+&lt;p&gt;在软件设计层上，设计精化策略、然后用严谨的数学符号建立模型并逐步精化、证明就可以得到一个安全可靠的系统模型&lt;/p&gt;
+
+&lt;p&gt;最后在软件实现层可以通过Event-B进行模型仿真或者通过一些工具生成部分代码。&lt;/p&gt;
+
+&lt;p&gt;通过这套建模理论就可以大大提高开发的模型或者系统的安全性、可靠性。&lt;/p&gt;
+
+</description>
+        <pubDate>Mon, 24 Apr 2017 13:40:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/introduction-to-event-b/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/introduction-to-event-b/</guid>
+        
+        <category>Event-B</category>
+        
+        <category>Formal method</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>在ubuntu上配置Clang Static Analyzer</title>
+        <description>&lt;p&gt;由于这学期的系统分析与验证工具课的要求是要调研这个工具，于是记下这个作为备忘吧。&lt;br /&gt;
+那么开始如何在linux平台上来使用基于clang的静态分析工具呢？下面是根据参考资料做的一个简单的整理：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;命令行输入&lt;code class=&quot;highlighter-rouge&quot;&gt;clang --version&lt;/code&gt;,查看一下是否安装clang；&lt;/li&gt;
+  &lt;li&gt;如果没有安装，执行命名&lt;code class=&quot;highlighter-rouge&quot;&gt;sudo apt-get install clang&lt;/code&gt;进行安装；&lt;/li&gt;
+  &lt;li&gt;创建一个memleak.c文件：&lt;br /&gt;
+&lt;code class=&quot;highlighter-rouge&quot;&gt;c
+#include&amp;lt;stdio.h&amp;gt;  
+#include&amp;lt;stdlib.h&amp;gt;  
+int main()  
+{  
+  int *mem;  
+  mem=malloc(sizeof(int));  
+  if(mem) return 1;  
+  *mem=0xdeadbeaf;  
+  free(mem);  
+  return 0;  
+} 
+&lt;/code&gt;&lt;br /&gt;
+&lt;!--more--&gt;&lt;/li&gt;
+  &lt;li&gt;到达mamleak.c路径下，执行 &lt;code class=&quot;highlighter-rouge&quot;&gt;$ scan-build clang -c memleak.c&lt;/code&gt;命令,得到类似结果：&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;alvin@AlvinUbuntu:~/clang_cases$ scan-build clang -c memleak.c
+scan-build: Using &#39;/usr/bin/clang&#39; for static analysis
+memleak.c:7:17: warning: Potential leak of memory pointed to by &#39;mem&#39;
+        if(mem) return 1;
+                       ^
+memleak.c:8:6: warning: Dereference of null pointer (loaded from variable &#39;mem&#39;)
+        *mem=0xdeadbeaf;
+         ~~~^
+2 warnings generated.
+scan-build: 2 bugs found.
+scan-build: Run &#39;scan-view /tmp/scan-build-2017-04-17-144607-26548-1&#39; to examine bug reports.
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;最后根据提示可以打开网页版的分析结果，即输入&lt;code class=&quot;highlighter-rouge&quot;&gt;scan-view /tmp/scan-build-2017-04-17-144607-26548-1&lt;/code&gt;即可得到报告。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/additional%20screenshot/1.png?raw=true&quot; width=&quot;500&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;点击 &lt;strong&gt;view report&lt;/strong&gt; 可查看详情：&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/additional%20screenshot/2.png?raw=true&quot; width=&quot;360&quot; /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;参考&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;http://www.cnblogs.com/zfyouxi/p/4747792.html&lt;/li&gt;
+  &lt;li&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+        <pubDate>Tue, 18 Apr 2017 13:40:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/install_clang_ststic_analyzer/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/install_clang_ststic_analyzer/</guid>
+        
+        <category>clang</category>
+        
+        <category>static analyzer</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>MIT6.828 Lab 4: Preemptive Multitasking Part C: Preemptive Multitasking and Inter-Process communication (IPC)</title>
+        <description>&lt;p&gt;在实验4的最后一个部分你将要修改内核，去实现抢占时非协作环境(进程)，以允许环境进程可以很明确地相互传达信息。&lt;/p&gt;
+
+&lt;h2 id=&quot;clock-interrupts-and-preemption&quot;&gt;Clock Interrupts and Preemption&lt;/h2&gt;
+
+&lt;p&gt;为了能允许内核有一个抢占式的运行环境，能够强制地重新获取CPU的控制权，我们必须拓展JOS使其能够从时钟硬件中得到硬件中断。&lt;/p&gt;
+
+&lt;h3 id=&quot;interrupt-discipline&quot;&gt;Interrupt discipline&lt;/h3&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;参考资料&lt;/h2&gt;
+
+&lt;p&gt;1.http://46aae4d1e2371e4aa769798941cef698.devproxy.yunshipei.com/bysui/article/details/51842817&lt;/p&gt;
+
+&lt;p&gt;2.https://github.com/Clann24/jos/tree/master/lab4/partB&lt;/p&gt;
+
+</description>
+        <pubDate>Fri, 14 Apr 2017 14:40:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/mit6828lab4partC/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/mit6828lab4partC/</guid>
+        
+        <category>MIT6.828</category>
+        
+        <category>OS</category>
+        
+        <category>process</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>MIT6.828 Lab 4: Preemptive Multitasking Part B: Copy-on-Write Fork</title>
+        <description>&lt;p&gt;在之前提到过，Unix提供了fork()系统调用作为它早期主要的进程创建。fork() 系统调用复制了调用进程（父进程）的地址空间，从而创建了一个新的进程（子进程）。&lt;/p&gt;
+
+&lt;p&gt;xv6 Unix中的fork() 实现了从父进程的页中拷贝所有的数据到新分配的子进程的页中。这个方法与dumpfork() 一样。而拷贝父进程的地址空间到子进程是整个fork() 操作开销最大的部分。&lt;/p&gt;
+
+&lt;p&gt;然而，在子进程中调用fork()之后立即会调用exec()，以将新的程序替换掉子进程的内存。这就是shell做的典型的事情。在这种情况下，由于子进程在调用exec之前只会用到很小一部分的内存，因此花在复制父进程地址空间的时间也就大量地浪费了。&lt;/p&gt;
+
+&lt;p&gt;因此在后面的版本中，Unix发挥了虚拟内存硬件的优势来允许父进程与子进程可以分享映射到它们对应的地址空间的内存，知道它们修改了地址空间。这个技术就是 &lt;strong&gt;copy-on-write&lt;/strong&gt;。这样做，在fork() 中内核就可以拷贝从父进程映射到子进程的地址空间，而不是拷贝页中的内容，与此同时，标记共享页为read-only。当它们两中的一个想要对共享页进行写操作时，进程就会发生一个页错误（page fault）。这时，Unix内核就会意识到该页是一个虚拟的页或者是一个copy-on-write的页，因此它就为这个出错的进程制作一个新的，私有的可写的副本。通过这样的方式，独立页的内容实际上也就不会真的复制，要么知道它们真的对它进行了写操作。那么在子进程中随后操作为exec的fork()调用的优化就变得简单了：在子进程调用exec之前，它可能只需要复制一个页（它的栈的当前页）。&lt;/p&gt;
+
+&lt;p&gt;在之后的实验中，你将会实现一个合适的类Unix的带有copy-on-write的fork() 作为用户空间的库。在用户空间实现这样的fork()的好处可以让内核更加简单并且更有可能是正确的。它也能让独立的用户模式的程序能定义它们自己fork的语义。&lt;/p&gt;
+
+&lt;h2 id=&quot;user-level-page-fault-handling&quot;&gt;User-level page fault handling&lt;/h2&gt;
+
+&lt;p&gt;一个用户级别的copy-on-write fork需要知道在写保护页上的页错误，这是我们首先需要实现的。Copy-on-write仅仅是我们处理用户级别的页错误的许多可能中的一种。&lt;/p&gt;
+
+&lt;p&gt;设置一个地址空间以便表明一些需要的操作什么时候会发生。举个例子，就是许多Unix内核起初只会映射一个页在进程的栈区，等到进程栈消耗提高从而造成页错误时才映射另外的栈页。一个典型的Unix内核必须是在每一个进程空间中跟踪当一个页错误发生要采取什么行动。例如，在栈区的错误将会分配和映射新的物理内存页。在程序BSS区的错误通常会分配一个新的页并用0填满它，然后映射它。&lt;/p&gt;
+
+&lt;h3 id=&quot;setting-the-page-fault-handler&quot;&gt;Setting the Page Fault Handler&lt;/h3&gt;
+
+&lt;p&gt;为了处理自己的页错误，在JOS中一个用户环境需要注册一个page fault handler entrypoint。通过新的系统调用sys_env_set_pgfault_upcall来注册这样的页错误。这时需要给Env结构添加一个新的数据来记录这些信息。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;Exercise 8. Implement the sys_env_set_pgfault_upcall system call. Be sure to enable permission checking when looking up the environment ID of the target environment, since this is a “dangerous” system call.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;// Set the page fault upcall for &#39;envid&#39; by modifying the corresponding struct
+// Env&#39;s &#39;env_pgfault_upcall&#39; field.  When &#39;envid&#39; causes a page fault, the
+// kernel will push a fault record onto the exception stack, then branch to
+// &#39;func&#39;.
+//
+// Returns 0 on success, &amp;lt; 0 on error.  Errors are:
+//  -E_BAD_ENV if environment envid doesn&#39;t currently exist,
+//      or the caller doesn&#39;t have permission to change envid.
+&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;sys_env_set_pgfault_upcall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;func&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Env&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; 
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid2env&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//bad_env
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_pgfault_upcall&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;func&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;sys_env_set_pgfault_upcall not implemented&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;normal-and-exception-stacks-in-user-environments&quot;&gt;Normal and Exception Stacks in User Environments&lt;/h3&gt;
+
+&lt;p&gt;在正常运行期间，JOS的一个用户环境将会在正常的用户栈上运行：它的ESP寄存器从USTACKTOP开始，并将它push的栈数据置于USTACKTOP-PGSIZE 和 USTACKTOP-1之间。当一个页错误出现在用户模式下，内核就会在一个运行着用户级别页错误处理的不同的栈上重启用户环境，那个栈就叫做 &lt;strong&gt;用户异常栈&lt;/strong&gt;。JOS将替换用户环境实现自动的“栈切换”，这个和x86处理器已经实现的从用户模式到内核模式切换到实现大致是同样的方式。&lt;/p&gt;
+
+&lt;p&gt;JOS的用户异常栈也是规格大小为一个页，并且它的顶有虚拟地址UXSTACKTOP定义。因此有效的用户异常栈的区间是 UXSTACKTOP-PGSIZE 到 UXSTACKTOP-1。当在异常栈上运行时，用户级别的页错误处理可以使用JOS的常规的系统调用，来映射新的页活着调整映射，来修正那些造成页错误的问题。然后用户级别页错误处理程序通过一个汇编程序stub返回到原始栈的错误代码处。&lt;/p&gt;
+
+&lt;p&gt;每一个想要支持用户级别页错误处理的用户环境都需要为自己的异常栈分配内存，这就用到了在part A中引入的sys_page_alloc()系统调用函数。&lt;/p&gt;
+
+&lt;p&gt;到目前位置出现了三个栈： &lt;br /&gt;
+　　[KSTACKTOP, KSTACKTOP-KSTKSIZE]    内核态系统栈&lt;/p&gt;
+
+&lt;p&gt;　　[UXSTACKTOP, UXSTACKTOP - PGSIZE]  用户态错误处理栈&lt;/p&gt;
+
+&lt;p&gt;　　[USTACKTOP, UTEXT]                 用户态运行栈&lt;/p&gt;
+
+&lt;p&gt;内核态系统栈是运行内核相关程序的栈，在有中断被触发之后，CPU会将栈自动切换到内核栈上来，而内核栈的设置是在kern/trap.c的trap_init_percpu()中设置的。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;trap_init_percpu&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// Setup a TSS so that we get the right stack
+&lt;/span&gt;        &lt;span class=&quot;c1&quot;&gt;// when we trap to the kernel.
+&lt;/span&gt;        &lt;span class=&quot;n&quot;&gt;thiscpu&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cpu_ts&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ts_esp0&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;KSTACKTOP&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;cpunum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;KSTKGAP&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;KSTKSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;thiscpu&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cpu_ts&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ts_ss0&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;GD_KD&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+        &lt;span class=&quot;c1&quot;&gt;// Initialize the TSS slot of the gdt.
+&lt;/span&gt;        &lt;span class=&quot;n&quot;&gt;gdt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;GD_TSS0&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;cpunum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SEG16&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;STS_T32A&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;thiscpu&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cpu_ts&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+                                        &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Taskstate&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;gdt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;GD_TSS0&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;cpunum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()].&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sd_s&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+        &lt;span class=&quot;c1&quot;&gt;// Load the TSS selector (like other segment selectors, the
+&lt;/span&gt;        &lt;span class=&quot;c1&quot;&gt;// bottom three bits are special; we leave them 0)
+&lt;/span&gt;        &lt;span class=&quot;n&quot;&gt;ltr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;GD_TSS0&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Segdesc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;cpunum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;());&lt;/span&gt;
+
+        &lt;span class=&quot;c1&quot;&gt;// Load the IDT
+&lt;/span&gt;        &lt;span class=&quot;n&quot;&gt;lidt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;idt_pd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;用户定义注册了自己的中断处理程序之后，相应的例程运行时的栈，整个过程如下：&lt;/p&gt;
+
+&lt;p&gt;首先陷入到内核，栈位置从用户运行栈切换到内核栈，进入到trap中，进行中断处理分发，进入到page_fault_handler() 当确认是用户程序触发的page fault的时候(内核触发的直接panic了)，为其在用户错误栈里分配一个UTrapframe的大小把栈切换到用户错误栈，运行响应的用户中断处理程序中断处理程序可能会触发另外一个同类型的中断，这个时候就会产生递归式的处理。处理完成之后，返回到用户运行栈。&lt;/p&gt;
+
+&lt;h3 id=&quot;invoking-the-user-page-fault-handler&quot;&gt;Invoking the User Page Fault Handler&lt;/h3&gt;
+
+&lt;p&gt;这时需要改变在kern/trap.c中的页错误处理代码来解决下面来自用户模式的页错误。你将在错误陷入时间状态的时候调用用户的环境。&lt;/p&gt;
+
+&lt;p&gt;如果没有已注册的页错误处理，JOS将会销毁用户环境。否则，内核就会在异常栈建立一个trap frame 就类似于inc/trap.h中的 struct UTrapframe：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;                    &amp;lt;-- UXSTACKTOP
+trap-time esp
+trap-time eflags
+trap-time eip
+trap-time eax       start of struct PushRegs
+trap-time ecx
+trap-time edx
+trap-time ebx
+trap-time esp
+trap-time ebp
+trap-time esi
+trap-time edi       end of struct PushRegs
+tf_err (error code)
+fault_va            &amp;lt;-- %esp when handler is run
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;然后内核就检查一下在异常栈这栈帧上的页错误处理的执行，这里必须搞清楚它是怎样发生的。而fault_va就是导致页错误的虚拟地址。&lt;/p&gt;
+
+&lt;p&gt;如果当一个异常发生的时候，用户环境已经在用户异常栈上执行了，那么页错误处理也就发生错误了。在这种情况下，就需要从新的栈帧开始，也就是在当前的tf-&amp;gt;tf_esp 之下，而不是UXSTACKTOP。首先需要push32位字，然后是一个 struct UTrapframe。&lt;/p&gt;
+
+&lt;p&gt;检查 tf-&amp;gt;tf_esp 是否在UXSTACKTOP-PGSIZE 和 UXSTACKTOP-1之间可以测试它是否已在用户异常栈上。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;Exercise 9. Implement the code in page_fault_handler in kern/trap.c required to dispatch page faults to the user-mode handler. Be sure to take appropriate precautions when writing into the exception stack. (What happens if the user environment runs out of space on the exception stack?)&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;page_fault_handler&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Trapframe&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fault_va&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// Read processor&#39;s CR2 register to find the faulting address
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;fault_va&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;rcr2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;();&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;cprintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;fault_va: %x&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fault_va&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// Handle kernel-mode page faults.
+&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// LAB 3: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_cs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;Kernel page fault!&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// We&#39;ve already handled kernel-mode exceptions, so if we get here,
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// the page fault happened in user mode.
+&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// Call the environment&#39;s page fault upcall, if one exists.  Set up a
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// page fault stack frame on the user exception stack (below
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// UXSTACKTOP), then branch to curenv-&amp;gt;env_pgfault_upcall.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// The page fault upcall might cause another page fault, in which case
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// we branch to the page fault upcall recursively, pushing another
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// page fault stack frame on top of the user exception stack.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// The trap handler needs one word of scratch space at the top of the
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// trap-time stack in order to return.  In the non-recursive case, we
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// don&#39;t have to worry about this because the top of the regular user
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// stack is free.  In the recursive case, this means we have to leave
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// an extra word between the current top of the exception stack and
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// the new stack frame because the exception stack _is_ the trap-time
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// stack.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// If there&#39;s no page fault upcall, the environment didn&#39;t allocate a
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// page for its exception stack or can&#39;t write to it, or the exception
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// stack overflows, then destroy the environment that caused the fault.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// Note that the grade script assumes you will first check for the page
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// fault upcall and print the &quot;user fault va&quot; message below if there is
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// none.  The remaining three checks can be combined into a single test.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// Hints:
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//   user_mem_assert() and env_run() are useful here.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//   To change what the user environment runs, modify &#39;curenv-&amp;gt;env_tf&#39;
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//   (the &#39;tf&#39; variable points at &#39;curenv-&amp;gt;env_tf&#39;).
+&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;curenv&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_pgfault_upcall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UTrapframe&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;kt&quot;&gt;uintptr_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;utf_addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;UXSTACKTOP&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_esp&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_esp&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;UXSTACKTOP&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;utf_addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_esp&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UTrapframe&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; 
+            &lt;span class=&quot;n&quot;&gt;utf_addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UXSTACKTOP&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UTrapframe&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;user_mem_assert&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;curenv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UTrapframe&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_W&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//1 is enough
+&lt;/span&gt;        &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UTrapframe&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;utf_addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+        &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_fault_va&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fault_va&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_err&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_err&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_regs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_regs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_eip&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_eip&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_eflags&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_eflags&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_esp&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_esp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+&lt;span class=&quot;c1&quot;&gt;//      curenv-&amp;gt;env_tf.env_tf
+&lt;/span&gt;        &lt;span class=&quot;n&quot;&gt;curenv&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_tf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_eip&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;uintptr_t&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;curenv&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_pgfault_upcall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;curenv&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_tf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_esp&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;utf_addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;env_run&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;curenv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// Destroy the environment that caused the fault.
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;cprintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;[%08x] user fault va %08x ip %08x&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;curenv&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_id&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fault_va&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_eip&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;print_trapframe&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;env_destroy&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;curenv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;user-mode-page-fault-entrypoint&quot;&gt;User-mode Page Fault Entrypoint&lt;/h3&gt;
+
+&lt;p&gt;接下来，就需要汇编实现功能：当从用户定义的处理函数返回之后，如何从用户错误栈直接返回到用户运行栈。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;Exercise 10. Implement the _pgfault_upcall routine in lib/pfentry.S. The interesting part is returning to the original point in the user code that caused the page fault. You’ll return directly there, without going back through the kernel. The hard part is simultaneously switching stacks and re-loading the EIP.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;// Throughout the remaining code, think carefully about what
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// registers are available for intermediate calculations.  You
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// may find that you have to rearrange your code in non-obvious
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// ways as registers become unavailable as scratch space.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;movl&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x28&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;esp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;edx&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;#&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;trap&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;time&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;eip&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;subl&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;$&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x30&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;esp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;movl&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x30&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;esp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;eax&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;#&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;trap&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;time&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;esp&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;movl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;edx&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;eax&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;addl&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;$&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;esp&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// Restore the trap-time registers.  After you do this, you
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// can no longer modify any general-purpose registers.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;popal&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// Restore eflags from the stack.  After you do this, you can
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// no longer use arithmetic operations or anything else that
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// modifies eflags.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;addl&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;$&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;esp&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;#&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;eip&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;popfl&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// Switch back to the adjusted trap-time stack.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;popl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;esp&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// Return to re-execute the instruction that faulted.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;实现C库用户态的page fault处理函数。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;Exercise 11. Finish set_pgfault_handler() in lib/pgfault.c.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;根据注视得到设置页错误处理函数。如果没有页错误，_pgfault_handler将会是0。我们第一次注册一个处理需要分配一个异常栈，并且告诉内核当一个页错误出现时要调用汇编语言程序_pgfault_upcall。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;set_pgfault_handler&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;handler&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UTrapframe&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// int r;
+&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_pgfault_handler&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// First time through!
+&lt;/span&gt;        &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_page_alloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;UXSTACKTOP&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_W&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; 
+            &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;set_pgfault_handler:sys_page_alloc failed&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);;&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// Save handler pointer for assembly to call.
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;_pgfault_handler&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;handler&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_env_set_pgfault_upcall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_pgfault_upcall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;set_pgfault_handler:sys_env_set_pgfault_upcall failed&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h2 id=&quot;implementing-copy-on-write-fork&quot;&gt;Implementing Copy-on-Write Fork&lt;/h2&gt;
+
+&lt;p&gt;现在已经有了在用户空间实现 copy-on-write fork()的整个内核基础。&lt;/p&gt;
+
+&lt;p&gt;我们在lib/fork.c中提供了一个框架，与dumbfork()，fork()类似，需要创建一个新环境，然后扫描整个父进程的地址空间，并且设置对应的在子进程的页映射。主要不同的是，当dumpfork()拷贝整个页，而fork(）起初将只拷贝页的映射。fork()只会在其中一个进程想要去写地址空间时才会复制页。&lt;/p&gt;
+
+&lt;p&gt;fork()基本的控制流如下：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;父进程配置 pgfault() 函数作为C-level的页错误处理，会用到上面的实现的set_pgfault_handler()。&lt;/li&gt;
+  &lt;li&gt;父进程调用sys_exofork()创建一个子进程环境。&lt;/li&gt;
+  &lt;li&gt;对于在UTOP之下的在地址空间里的每一个可写或copy-on-write的页，父进程就会调用duppage，它会将copy-on-write页映射到子进程的地址空间，然后重新映射copy-on-write页到自己的地址空间。[注意这里的顺序十分重要！知道为什么吗？你可以尝试思考将该顺序弄反会是造成怎样的麻烦]。duppage设置它们的PTEs，以便页是不能写的，然后在抑制无效领域的 PTE_COW 来区别 copy-on-write pages及原始的只读页。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;fork()同样要解决现在的页，但页不可写以及是copy-on-write。&lt;br /&gt;
+- 父进程为子进程设置用户页错误入口。&lt;br /&gt;
+- 子进程现在可以运行，然后父进程将其标记为可运行。&lt;/p&gt;
+
+&lt;p&gt;每次这两进程中的一个向一个空的copy-on-write页写时，就会产生一个页错误。下面是用户页错误处理的控制流：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;内核传播页错误到_pgfault_upcall，调用fork()的pgfault() handler。&lt;/li&gt;
+  &lt;li&gt;pgfault() 检查错误代码中的FEC_WR，然后页中的PTE标记为 PTE_COW。没有的话，panic。&lt;/li&gt;
+  &lt;li&gt;pgfault() 分配一个映射在一个临时位置的新的页，然后将错误页中的内容复制进去。然后错误处理映射新的页到何时的带有读写权限的地址，替换院线的旧的只读的映射。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;Exercise 12. Implement fork, duppage and pgfault in lib/fork.c.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;//
+// User-level fork with copy-on-write.
+// Set up our page fault handler appropriately.
+// Create a child.
+// Copy our address space and page fault handler setup to the child.
+// Then mark the child as runnable and return.
+//
+// Returns: child&#39;s envid to the parent, 0 to the child, &amp;lt; 0 on error.
+// It is also OK to panic on error.
+//
+// Hint:
+//   Use uvpd, uvpt, and duppage.
+//   Remember to fix &quot;thisenv&quot; in the child process.
+//   Neither user exception stack should ever be marked copy-on-write,
+//   so you must allocate a new page for the child&#39;s user exception stack.
+//
+&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;fork&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;set_pgfault_handler&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pgfault&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sys_exofork&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;();&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// panic(&quot;child&quot;);
+&lt;/span&gt;        &lt;span class=&quot;n&quot;&gt;thisenv&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ENVX&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_getenvid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;())];&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// cprintf(&quot;sys_exofork: %x\n&quot;, envid);
+&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;sys_exofork: %e&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;USTACKTOP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;uvpd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PDX&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;uvpt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGNUM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;uvpt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGNUM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;c1&quot;&gt;// cprintf(&quot;envid: %x, PGNUM: %x, addr: %x\n&quot;, envid, PGNUM(addr), addr);
+&lt;/span&gt;            &lt;span class=&quot;c1&quot;&gt;// if (addr!=0x802000) {
+&lt;/span&gt;            &lt;span class=&quot;n&quot;&gt;duppage&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PGNUM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+            &lt;span class=&quot;c1&quot;&gt;// } else panic(&quot;user fork&quot;);
+&lt;/span&gt;            &lt;span class=&quot;c1&quot;&gt;// cprintf(&quot;duppage done\n&quot;);
+&lt;/span&gt;            &lt;span class=&quot;c1&quot;&gt;// cprintf(&quot;%x\n&quot;, uvpd[PDX(addr)]);
+&lt;/span&gt;            &lt;span class=&quot;c1&quot;&gt;// cprintf(&quot;%x\n&quot;, uvpt[PGNUM(addr)]);
+&lt;/span&gt;        &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// panic(&quot;faint&quot;);
+&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_page_alloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;UXSTACKTOP&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_W&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;1&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;extern&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_pgfault_upcall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;();&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;sys_env_set_pgfault_upcall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_pgfault_upcall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_env_set_status&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ENV_RUNNABLE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;sys_env_set_status&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;fork not implemented&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;//
+// Map our virtual page pn (address pn*PGSIZE) into the target envid
+// at the same virtual address.  If the page is writable or copy-on-write,
+// the new mapping must be created copy-on-write, and then our mapping must be
+// marked copy-on-write as well.  (Exercise: Why do we need to mark ours
+// copy-on-write again if it was already copy-on-write at the beginning of
+// this function?)
+//
+// Returns: 0 on success, &amp;lt; 0 on error.
+// It is also OK to panic on error.
+//
+&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;duppage&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;unsigned&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pn&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// cprintf(&quot;1\n&quot;);
+&lt;/span&gt;    &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pn&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;uvpt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pn&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_W&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;uvpt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pn&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_COW&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_page_map&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_COW&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;2&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_page_map&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_COW&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;3&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sys_page_map&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// cprintf(&quot;2\n&quot;);
+&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;duppage not implemented&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;//
+// Custom page fault handler - if faulting page is copy-on-write,
+// map in our own private writable copy.
+//
+&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;pgfault&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UTrapframe&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// panic(&quot;pgfault&quot;);
+&lt;/span&gt;    &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_fault_va&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;err&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_err&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// Check that the faulting access was (1) a write, and (2) to a
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// copy-on-write page.  If not, panic.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// Hint: 
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//   Use the read-only page table mappings at uvpt
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//   (see &amp;lt;inc/memlayout.h&amp;gt;).
+&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;!&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;
+            &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;err&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;FEC_WR&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;uvpd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PDX&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; 
+            &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;uvpt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGNUM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;uvpt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGNUM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_COW&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)))&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;not copy-on-write&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// panic(&quot;pgfault&quot;);
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// Allocate a new page, map it at a temporary location (PFTEMP),
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// copy the data from the old page to the new page, then move the new
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// page to the old page&#39;s address.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;// Hint:
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//   You should make three system calls.
+&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//   No need to explicitly delete the old page&#39;s mapping.
+&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// LAB 4: Your code here.
+&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ROUNDDOWN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_page_alloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PFTEMP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_W&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;sys_page_alloc&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;memcpy&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PFTEMP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_page_map&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PFTEMP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_W&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;sys_page_map&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_page_unmap&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PFTEMP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;sys_page_unmap&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;参考资料&lt;/h2&gt;
+
+&lt;p&gt;1.http://46aae4d1e2371e4aa769798941cef698.devproxy.yunshipei.com/bysui/article/details/51842817&lt;/p&gt;
+
+&lt;p&gt;2.https://github.com/Clann24/jos/tree/master/lab4/partB&lt;/p&gt;
+
+</description>
+        <pubDate>Thu, 13 Apr 2017 14:40:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/mit6828lab4partB/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/mit6828lab4partB/</guid>
+        
+        <category>MIT6.828</category>
+        
+        <category>OS</category>
+        
+        <category>process</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>如何看懂Polyspace的分析结果并进行审查</title>
+        <description>&lt;p&gt;首先是需要对分析结果所显示的窗口有一定的了解，能够得到这些图标中的信息。&lt;/p&gt;
+
+&lt;h2 id=&quot;dashboard&quot;&gt;Dashboard&lt;/h2&gt;
+&lt;p&gt;在运行完分析之后，会出现一些可视化的图表，用图形的形式为分析结果提供了一些数据。那么首先解读一下这些图标数据。&lt;/p&gt;
+
+&lt;h3 id=&quot;code-covered-by-analysis&quot;&gt;Code covered by analysis&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/Polyspace/results_statistics_code_covered_by_analysis.png?raw=true&quot; alt=&quot;Code covered by analysis&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;很容易看出，这张图主要是讲了分析所覆盖的代码比例，从中可以看出：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Files：分析过的文件占总文件的一个比例。如果一个文件包含了编译错误，那么Polyspace Bug Finder不会分析这个文件。&lt;/li&gt;
+  &lt;li&gt;Functions：在已分析的文件中，分析过的函数占总函数数量的比例。如果一个函数所用的分析时间大于一定的界值，那么Polyspace Bug Finder不会分析该函数。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;defect-distribution-by-category-or-file&quot;&gt;Defect distribution by category or file&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/Polyspace/results_statistics_defect_distribution.png?raw=true&quot; alt=&quot;Defect distribution by category or file&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;这是对检测出的代码缺陷的一个分类图，从这张图表可以得到最多（少）的10种错误，它会有两种呈现方式，一种是按缺陷类别进行排序，另一种是按缺陷文件进行排序。在第一种中将光标移至红条处可以看到是哪个文件的，在第二种中将光标移到红条处可以知道是哪些类型的缺陷。&lt;/p&gt;
+
+&lt;p&gt;这样子，就可以根据图表对缺陷最多（少）的类型（或文件）优先排查和修复。&lt;/p&gt;
+
+&lt;p&gt;这里是一个对有影响的缺陷的一个&lt;a href=&quot;https://cn.mathworks.com/help/bugfinder/ug/result-grouping-by-impact.html&quot;&gt;级别分类&lt;/a&gt;。&lt;/p&gt;
+
+&lt;h3 id=&quot;coding-rule-violations-by-rule-or-file&quot;&gt;Coding rule violations by rule or file&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/Polyspace/results_statistics_coding_rule_distribution.png?raw=true&quot; alt=&quot;Coding rule violations by rule or file &quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;针对所写的代码是否违背所检查的代码规则，例如MISRA®, JSF® 或自定义的，那么这张图就包含了这些规则违背。&lt;/p&gt;
+
+&lt;p&gt;同样可以按照违反类型以及文件来查看最多（少）的违反的规则，对于具体的那些规则这里有：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;https://cn.mathworks.com/help/bugfinder/ug/misra-c-coding-rules.html#brjxmed&quot;&gt;Supported MISRA C:2004 and MISRA AC AGC Rules&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://cn.mathworks.com/help/bugfinder/ug/misra-c-coding-rules-1.html#bse_zo6-1&quot;&gt;Supported MISRA C++ Coding Rules&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://cn.mathworks.com/help/bugfinder/ug/supported-.html#bru7_x0-3&quot;&gt;Supported JSF C++ Coding Rules&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;result-list&quot;&gt;Result List&lt;/h2&gt;
+&lt;p&gt;在result list界面展现了一歇结果的参数，可以有不同的排列方式：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;None：对排列代码缺陷和代码规则违反不做要求。根据严重性默认排列。&lt;/li&gt;
+  &lt;li&gt;Family：根据不同的缺陷类别进行排列。详细的缺陷类别可见&lt;a href=&quot;https://cn.mathworks.com/help/bugfinder/ug/description-of-check-categories.html&quot;&gt;Bug Finder Defect Groups&lt;/a&gt;。&lt;/li&gt;
+  &lt;li&gt;Class（only C++）：根据类排列，在每个类里再根据方法排列。&lt;/li&gt;
+  &lt;li&gt;File：根据文件排列，在每个文件中再按照函数排列。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;那么它们的参数是哪些呢？又下表可知：&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;参数&lt;/th&gt;
+      &lt;th&gt;描述&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Family&lt;/td&gt;
+      &lt;td&gt;结果属于哪一个群类&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;ID&lt;/td&gt;
+      &lt;td&gt;结果唯一的标志符&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Type&lt;/td&gt;
+      &lt;td&gt;代码缺陷或者是规则违反&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Group&lt;/td&gt;
+      &lt;td&gt;结果的类别，例如对于代码缺陷可以是静态内存、数值的、控制流、并发等等；对于代码规则违反可以是 MISRA C®中的某一条规则&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Check&lt;/td&gt;
+      &lt;td&gt;结果名，例如对缺陷而言就是缺陷名；对代码规则违法而言就是代码规则编号&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;File&lt;/td&gt;
+      &lt;td&gt;出自哪个文件&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Class&lt;/td&gt;
+      &lt;td&gt;出自哪个类&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Function&lt;/td&gt;
+      &lt;td&gt;出自哪个函数&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Folder&lt;/td&gt;
+      &lt;td&gt;源文件所属的文件夹&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Serverity&lt;/td&gt;
+      &lt;td&gt;结果的严重级别：High、Medium、Low、Not a defect&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Status&lt;/td&gt;
+      &lt;td&gt;审查结果的状态，可能的状态：Fix、Improve、Investigate、Justified、No action planned、other&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Comment&lt;/td&gt;
+      &lt;td&gt;注释&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;这样就可以通过这些结果来&lt;a href=&quot;https://cn.mathworks.com/help/bugfinder/ug/review-and-comment-results_bty8g0k-1_1.html&quot;&gt;审查和修复结果&lt;/a&gt;。&lt;/p&gt;
+
+&lt;h2 id=&quot;source&quot;&gt;Source&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/Polyspace/source_pane.png?raw=true&quot; alt=&quot;source code&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;这个窗口可以看到标有颜色的代码缺陷的源代码，右击它们会出现一些菜单选项。&lt;/p&gt;
+
+&lt;h2 id=&quot;result-details&quot;&gt;Result Details&lt;/h2&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://github.com/Alvinsjq/6.828_tasks/blob/master/screemshot/Polyspace/check_details.png?raw=true&quot; alt=&quot;Result Details&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;这和界面包含了对一个缺陷的详细的信息。得到它只需要在Result List中选择特定的缺陷。在2017a中的PolySpace版本中，还可以对每一个check分配严重等级和状态以避免被重复check。&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;右上角展现了包含这个defect的文件及其函数；&lt;/li&gt;
+  &lt;li&gt;黄色框中展现了这个defect的名字以及解释了为什么这个defect会发生；&lt;/li&gt;
+  &lt;li&gt;Event列出了导致这个defect的代码指令，Scope列出了包含这些指令的函数，如果这个指令不在一个函数中，那么就显示它所在的文件；&lt;/li&gt;
+  &lt;li&gt;Variable trace可选项允许你看见与该defect相关的其他的指令。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;那么如何审查和修补结果呢？那么接下来的例子就是说明怎样去审查和注释你的Bug Finder结果。当你在审查结果是，你可以对这些defect安排一个状态，以及输入一些注释来描述你审查的结果。&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;首先打开Result List选择一个defect，然后关注Result Detail窗口中的信息；&lt;/li&gt;
+  &lt;li&gt;进一步审查这个结果，确定是否要修改你的代码，或在之后再审查，或者保留这个代码但是提供一些说明；&lt;/li&gt;
+  &lt;li&gt;在Result List或Result Detail上提供以下的审查信息：
+    &lt;ul&gt;
+      &lt;li&gt;严重性&lt;/li&gt;
+      &lt;li&gt;状态&lt;/li&gt;
+      &lt;li&gt;注释&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;如果要对多个结果一起审查并提供信息，那么就需要同时选择这些结果；&lt;/li&gt;
+  &lt;li&gt;最终记得保存。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;当然还可以从之前的分析中导入审查注释。&lt;/p&gt;
+
+&lt;p&gt;对一些无法修复的代码，可以添加一些注释，注释最好以这种格式出现，详情可见&lt;a href=&quot;https://cn.mathworks.com/help/bugfinder/ug/annotate-code-for-known-results.html&quot;&gt;Annotate Code for Known or Acceptable Results&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;参考资料&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;https://cn.mathworks.com/help/bugfinder/ug/overview-of-results-manager.html&lt;/li&gt;
+&lt;/ul&gt;
+
+</description>
+        <pubDate>Tue, 04 Apr 2017 14:40:22 +0800</pubDate>
+        <link>http://alvinsjq.github.io/2017/Polyspace-Windows-used-to-Review-Result/</link>
+        <guid isPermaLink="true">http://alvinsjq.github.io/2017/Polyspace-Windows-used-to-Review-Result/</guid>
+        
+        <category>Polyspace</category>
+        
+        <category>Operating System Design</category>
+        
+        <category>Static Analysis</category>
+        
+        
+      </item>
+    
+  </channel>
+</rss>

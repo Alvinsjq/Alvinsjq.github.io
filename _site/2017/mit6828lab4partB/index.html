@@ -1,0 +1,307 @@
+<!DOCTYPE html> <html> <head> <meta charset="utf-8"> <meta name="apple-mobile-web-app-capable" content="yes"> <meta http-equiv="X-UA-Compatible" content="IE=edge"> <meta name="viewport" content="width=device-width, initial-scale=1"> <title> MIT6.828 Lab 4: Preemptive Multitasking Part B: Copy-on-Write Fork | Alvin Is </title> <!-- Icons --> <link rel="apple-touch-icon" type=" image/png" sizes="144x144" href="assets/images/webicon.png"> <link rel="icon" type=" image/png" href="/assets/images/webicon_32.png"> <link rel="shortcut icon" type=" image/png" href="/assets/images/webicon_32.png"> <meta name="description" content=" MIT操作系统6.828实验4第二部分：Copy-on-Write Fork "> <meta name="keywords" content=""> <meta name="HandheldFriendly" content="True"> <meta name="MobileOptimized" content="320"> <!-- Social: Facebook / Open Graph --> <meta property="og:type" content="article"> <meta property="article:author" content="Alvinsjq"> <meta property="article:section" content=""> <meta property="article:tag" content=""> <meta property="article:published_time" content="2017-04-13 14:40:22 +0800"> <meta property="og:url" content="http://alvinsjq.github.io/2017/mit6828lab4partB/"> <meta property="og:title" content=" MIT6.828 Lab 4: Preemptive Multitasking Part B: Copy-on-Write Fork | Alvin Is "> <meta property="og:image" content="http://alvinsjq.github.io"> <meta property="og:description" content=" MIT操作系统6.828实验4第二部分：Copy-on-Write Fork "> <meta property="og:site_name" content="Alvinsjq"> <meta property="og:locale" content="en_US"> <!-- Social: Twitter --> <meta name="twitter:card" content="summary_large_image"> <meta name="twitter:site" content="@Alvin_sjq"> <meta name="twitter:title" content=" MIT6.828 Lab 4: Preemptive Multitasking Part B: Copy-on-Write Fork | Alvin Is "> <meta name="twitter:description" content=" MIT操作系统6.828实验4第二部分：Copy-on-Write Fork "> <meta name="twitter:image:src" content="http://alvinsjq.github.io"> <!-- Social: Google+ / Schema.org --> <meta itemprop="name" content=" MIT6.828 Lab 4: Preemptive Multitasking Part B: Copy-on-Write Fork | Alvin Is "> <meta itemprop="description" content=" MIT操作系统6.828实验4第二部分：Copy-on-Write Fork "> <meta itemprop="image" content="http://alvinsjq.github.io"> <!-- rel prev and next --> <link rel="stylesheet" href="/assets/css/main.css"> <link rel="stylesheet" href="/assets/css/font-awesome.min.css"> <!-- Canonical link tag --> <link rel="canonical" href="http://alvinsjq.github.io/2017/mit6828lab4partB/"> <link rel="alternate" type="application/rss+xml" title="Alvin Is" href="http://alvinsjq.github.io/feed.xml"> <script type="text/javascript"> var disqus_shortname = 'alvin-is'; var _gaq = _gaq || []; _gaq.push(['_setAccount', '']); _gaq.push(['_trackPageview']); (function() { var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true; ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js'; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s); })(); </script> <script src="https://code.jquery.com/jquery-3.2.0.min.js"></script> <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.1.js"></script> <script>AV.initialize("OfIL1RlM4M4n30dWx3wXlEIz-gzGzoHsz", "LlDtB3Xu9be1655lnGQdPedO");</script> <script> function showHitCount(Counter) { var query = new AV.Query(Counter); var entries = []; var $visitors = $(".leancloud_visitors"); $visitors.each(function () { entries.push( $(this).attr("id").trim() ); }); query.containedIn('url', entries); query.find() .done(function (results) { var COUNT_CONTAINER_REF = '.leancloud-visitors-count'; if (results.length === 0) { $visitors.find(COUNT_CONTAINER_REF).text(0); return; } for (var i = 0; i < results.length; i++) { var item = results[i]; var url = item.get('url'); var hits = item.get('hits'); var element = document.getElementById(url); $(element).find(COUNT_CONTAINER_REF).text(hits); } for(var i = 0; i < entries.length; i++) { var url = entries[i]; var element = document.getElementById(url); var countSpan = $(element).find(COUNT_CONTAINER_REF); if( countSpan.text() == '') { countSpan.text(0); } } }) .fail(function (object, error) { console.log("Error: " + error.code + " " + error.message); }); } function addCount(Counter) { var $visitors = $(".leancloud_visitors"); var url = $visitors.attr('id').trim(); var title = $visitors.attr('data-flag-title').trim(); var query = new AV.Query(Counter); query.equalTo("url", url); query.find({ success: function(results) { if (results.length > 0) { var counter = results[0]; counter.fetchWhenSave(true); counter.increment("hits"); counter.save(null, { success: function(counter) { var $element = $(document.getElementById(url)); $element.find('.leancloud-visitors-count').text(counter.get('hits')); }, error: function(counter, error) { console.log('Failed to save Visitor num, with error message: ' + error.message); } }); } else { var newcounter = new Counter(); var acl = new AV.ACL(); acl.setPublicReadAccess(true); acl.setPublicWriteAccess(true); newcounter.setACL(acl); newcounter.set("title", title); newcounter.set("url", url); newcounter.set("hits", 1); newcounter.save(null, { success: function(newcounter) { var $element = $(document.getElementById(url)); $element.find('.leancloud-visitors-count').text(newcounter.get('hits')); }, error: function(newcounter, error) { console.log('Failed to create'); } }); } }, error: function(error) { console.log('Error:' + error.code + " " + error.message); } }); } $(function() { var Counter = AV.Object.extend("Counter"); if ($('.leancloud_visitors').length == 1) { addCount(Counter); } else if ($('.post-link').length > 1){ showHitCount(Counter); } }); </script> <script> var _hmt = _hmt || []; (function() { var hm = document.createElement("script"); hm.src = "https://hm.baidu.com/hm.js?011d93aa32b263cf21d7c9a15165b8a0"; var s = document.getElementsByTagName("script")[0]; s.parentNode.insertBefore(hm, s); })(); </script> </head> <body> <main class="wrapper"> <header class="site-header"> <nav class="nav"> <div class="container"> <h1 class="logo"><a href="/">Alvin Is<span></span></a></h1> <ul class="navbar"> <li><a href="/about">About</a></li> <li><a href="/talks">Topics</a></li> <li><a href="/archives">Archives</a></li> <li><a href="/feed.xml" target="_blank"></a></li> </ul> </div> </nav> </header> <article class="post container" itemscope itemtype="http://schema.org/BlogPosting"> <header class="post-header"> <p class="post-meta"><time datetime="2017-04-13T14:40:22+08:00" itemprop="datePublished">Apr 13, 2017</time> <span id="/2017/mit6828lab4partB/" class="leancloud_visitors" data-flag-title="MIT6.828 Lab 4: Preemptive Multitasking Part B: Copy-on-Write Fork"> <span class="post-meta-divider">|</span> <span class="post-meta-item-text"> 浏览次数: </span> <span class="leancloud-visitors-count"></span> </span> </p> <h1 class="post-title" itemprop="name headline">MIT6.828 Lab 4: Preemptive Multitasking Part B: Copy-on-Write Fork</h1> <script type="text/x-mathjax-config"> MathJax.Hub.Config({ TeX: { equationNumbers: { autoNumber: "all" } } }); </script> <script type="text/x-mathjax-config"> MathJax.Hub.Config({ tex2jax: { inlineMath: [ ['$','$'], ["\\(","\\)"] ], processEscapes: true } }); </script> <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script> </header> <div class="post-content" itemprop="articleBody"> <p>在之前提到过，Unix提供了fork()系统调用作为它早期主要的进程创建。fork() 系统调用复制了调用进程（父进程）的地址空间，从而创建了一个新的进程（子进程）。</p> <p>xv6 Unix中的fork() 实现了从父进程的页中拷贝所有的数据到新分配的子进程的页中。这个方法与dumpfork() 一样。而拷贝父进程的地址空间到子进程是整个fork() 操作开销最大的部分。</p> <p>然而，在子进程中调用fork()之后立即会调用exec()，以将新的程序替换掉子进程的内存。这就是shell做的典型的事情。在这种情况下，由于子进程在调用exec之前只会用到很小一部分的内存，因此花在复制父进程地址空间的时间也就大量地浪费了。</p> <p>因此在后面的版本中，Unix发挥了虚拟内存硬件的优势来允许父进程与子进程可以分享映射到它们对应的地址空间的内存，知道它们修改了地址空间。这个技术就是 <strong>copy-on-write</strong>。这样做，在fork() 中内核就可以拷贝从父进程映射到子进程的地址空间，而不是拷贝页中的内容，与此同时，标记共享页为read-only。当它们两中的一个想要对共享页进行写操作时，进程就会发生一个页错误（page fault）。这时，Unix内核就会意识到该页是一个虚拟的页或者是一个copy-on-write的页，因此它就为这个出错的进程制作一个新的，私有的可写的副本。通过这样的方式，独立页的内容实际上也就不会真的复制，要么知道它们真的对它进行了写操作。那么在子进程中随后操作为exec的fork()调用的优化就变得简单了：在子进程调用exec之前，它可能只需要复制一个页（它的栈的当前页）。</p> <p>在之后的实验中，你将会实现一个合适的类Unix的带有copy-on-write的fork() 作为用户空间的库。在用户空间实现这样的fork()的好处可以让内核更加简单并且更有可能是正确的。它也能让独立的用户模式的程序能定义它们自己fork的语义。</p> <h2 id="user-level-page-fault-handling">User-level page fault handling</h2> <p>一个用户级别的copy-on-write fork需要知道在写保护页上的页错误，这是我们首先需要实现的。Copy-on-write仅仅是我们处理用户级别的页错误的许多可能中的一种。</p> <p>设置一个地址空间以便表明一些需要的操作什么时候会发生。举个例子，就是许多Unix内核起初只会映射一个页在进程的栈区，等到进程栈消耗提高从而造成页错误时才映射另外的栈页。一个典型的Unix内核必须是在每一个进程空间中跟踪当一个页错误发生要采取什么行动。例如，在栈区的错误将会分配和映射新的物理内存页。在程序BSS区的错误通常会分配一个新的页并用0填满它，然后映射它。</p> <h3 id="setting-the-page-fault-handler">Setting the Page Fault Handler</h3> <p>为了处理自己的页错误，在JOS中一个用户环境需要注册一个page fault handler entrypoint。通过新的系统调用sys_env_set_pgfault_upcall来注册这样的页错误。这时需要给Env结构添加一个新的数据来记录这些信息。</p> <blockquote> <p>Exercise 8. Implement the sys_env_set_pgfault_upcall system call. Be sure to enable permission checking when looking up the environment ID of the target environment, since this is a “dangerous” system call.</p> </blockquote> <div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// Set the page fault upcall for 'envid' by modifying the corresponding struct
+// Env's 'env_pgfault_upcall' field.  When 'envid' causes a page fault, the
+// kernel will push a fault record onto the exception stack, then branch to
+// 'func'.
+//
+// Returns 0 on success, &lt; 0 on error.  Errors are:
+//  -E_BAD_ENV if environment envid doesn't currently exist,
+//      or the caller doesn't have permission to change envid.
+</span><span class="k">static</span> <span class="kt">int</span>
+<span class="nf">sys_env_set_pgfault_upcall</span><span class="p">(</span><span class="n">envid_t</span> <span class="n">envid</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">func</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="k">struct</span> <span class="n">Env</span> <span class="o">*</span><span class="n">e</span><span class="p">;</span> 
+    <span class="kt">int</span> <span class="n">ret</span> <span class="o">=</span> <span class="n">envid2env</span><span class="p">(</span><span class="n">envid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">e</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ret</span><span class="p">)</span> <span class="k">return</span> <span class="n">ret</span><span class="p">;</span>    <span class="c1">//bad_env
+</span>    <span class="n">e</span><span class="o">-&gt;</span><span class="n">env_pgfault_upcall</span> <span class="o">=</span> <span class="n">func</span><span class="p">;</span>
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="n">panic</span><span class="p">(</span><span class="s">"sys_env_set_pgfault_upcall not implemented"</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <h3 id="normal-and-exception-stacks-in-user-environments">Normal and Exception Stacks in User Environments</h3> <p>在正常运行期间，JOS的一个用户环境将会在正常的用户栈上运行：它的ESP寄存器从USTACKTOP开始，并将它push的栈数据置于USTACKTOP-PGSIZE 和 USTACKTOP-1之间。当一个页错误出现在用户模式下，内核就会在一个运行着用户级别页错误处理的不同的栈上重启用户环境，那个栈就叫做 <strong>用户异常栈</strong>。JOS将替换用户环境实现自动的“栈切换”，这个和x86处理器已经实现的从用户模式到内核模式切换到实现大致是同样的方式。</p> <p>JOS的用户异常栈也是规格大小为一个页，并且它的顶有虚拟地址UXSTACKTOP定义。因此有效的用户异常栈的区间是 UXSTACKTOP-PGSIZE 到 UXSTACKTOP-1。当在异常栈上运行时，用户级别的页错误处理可以使用JOS的常规的系统调用，来映射新的页活着调整映射，来修正那些造成页错误的问题。然后用户级别页错误处理程序通过一个汇编程序stub返回到原始栈的错误代码处。</p> <p>每一个想要支持用户级别页错误处理的用户环境都需要为自己的异常栈分配内存，这就用到了在part A中引入的sys_page_alloc()系统调用函数。</p> <p>到目前位置出现了三个栈： <br /> 　　[KSTACKTOP, KSTACKTOP-KSTKSIZE] 内核态系统栈</p> <p>　　[UXSTACKTOP, UXSTACKTOP - PGSIZE] 用户态错误处理栈</p> <p>　　[USTACKTOP, UTEXT] 用户态运行栈</p> <p>内核态系统栈是运行内核相关程序的栈，在有中断被触发之后，CPU会将栈自动切换到内核栈上来，而内核栈的设置是在kern/trap.c的trap_init_percpu()中设置的。</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">trap_init_percpu</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+        <span class="c1">// Setup a TSS so that we get the right stack
+</span>        <span class="c1">// when we trap to the kernel.
+</span>        <span class="n">thiscpu</span><span class="o">-&gt;</span><span class="n">cpu_ts</span><span class="p">.</span><span class="n">ts_esp0</span> <span class="o">=</span> <span class="n">KSTACKTOP</span> <span class="o">-</span> <span class="n">cpunum</span><span class="p">()</span> <span class="o">*</span> <span class="p">(</span><span class="n">KSTKGAP</span> <span class="o">+</span> <span class="n">KSTKSIZE</span><span class="p">);</span>
+        <span class="n">thiscpu</span><span class="o">-&gt;</span><span class="n">cpu_ts</span><span class="p">.</span><span class="n">ts_ss0</span> <span class="o">=</span> <span class="n">GD_KD</span><span class="p">;</span>
+
+        <span class="c1">// Initialize the TSS slot of the gdt.
+</span>        <span class="n">gdt</span><span class="p">[(</span><span class="n">GD_TSS0</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">)</span> <span class="o">+</span> <span class="n">cpunum</span><span class="p">()]</span> <span class="o">=</span> <span class="n">SEG16</span><span class="p">(</span><span class="n">STS_T32A</span><span class="p">,</span> <span class="p">(</span><span class="kt">uint32_t</span><span class="p">)</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">thiscpu</span><span class="o">-&gt;</span><span class="n">cpu_ts</span><span class="p">),</span>
+                                        <span class="k">sizeof</span><span class="p">(</span><span class="k">struct</span> <span class="n">Taskstate</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+        <span class="n">gdt</span><span class="p">[(</span><span class="n">GD_TSS0</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">)</span> <span class="o">+</span> <span class="n">cpunum</span><span class="p">()].</span><span class="n">sd_s</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+        <span class="c1">// Load the TSS selector (like other segment selectors, the
+</span>        <span class="c1">// bottom three bits are special; we leave them 0)
+</span>        <span class="n">ltr</span><span class="p">(</span><span class="n">GD_TSS0</span> <span class="o">+</span> <span class="k">sizeof</span><span class="p">(</span><span class="k">struct</span> <span class="n">Segdesc</span><span class="p">)</span> <span class="o">*</span> <span class="n">cpunum</span><span class="p">());</span>
+
+        <span class="c1">// Load the IDT
+</span>        <span class="n">lidt</span><span class="p">(</span><span class="o">&amp;</span><span class="n">idt_pd</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <p>用户定义注册了自己的中断处理程序之后，相应的例程运行时的栈，整个过程如下：</p> <p>首先陷入到内核，栈位置从用户运行栈切换到内核栈，进入到trap中，进行中断处理分发，进入到page_fault_handler() 当确认是用户程序触发的page fault的时候(内核触发的直接panic了)，为其在用户错误栈里分配一个UTrapframe的大小把栈切换到用户错误栈，运行响应的用户中断处理程序中断处理程序可能会触发另外一个同类型的中断，这个时候就会产生递归式的处理。处理完成之后，返回到用户运行栈。</p> <h3 id="invoking-the-user-page-fault-handler">Invoking the User Page Fault Handler</h3> <p>这时需要改变在kern/trap.c中的页错误处理代码来解决下面来自用户模式的页错误。你将在错误陷入时间状态的时候调用用户的环境。</p> <p>如果没有已注册的页错误处理，JOS将会销毁用户环境。否则，内核就会在异常栈建立一个trap frame 就类似于inc/trap.h中的 struct UTrapframe：</p> <div class="highlighter-rouge"><pre class="highlight"><code>                    &lt;-- UXSTACKTOP
+trap-time esp
+trap-time eflags
+trap-time eip
+trap-time eax       start of struct PushRegs
+trap-time ecx
+trap-time edx
+trap-time ebx
+trap-time esp
+trap-time ebp
+trap-time esi
+trap-time edi       end of struct PushRegs
+tf_err (error code)
+fault_va            &lt;-- %esp when handler is run
+</code></pre></div> <p>然后内核就检查一下在异常栈这栈帧上的页错误处理的执行，这里必须搞清楚它是怎样发生的。而fault_va就是导致页错误的虚拟地址。</p> <p>如果当一个异常发生的时候，用户环境已经在用户异常栈上执行了，那么页错误处理也就发生错误了。在这种情况下，就需要从新的栈帧开始，也就是在当前的tf-&gt;tf_esp 之下，而不是UXSTACKTOP。首先需要push32位字，然后是一个 struct UTrapframe。</p> <p>检查 tf-&gt;tf_esp 是否在UXSTACKTOP-PGSIZE 和 UXSTACKTOP-1之间可以测试它是否已在用户异常栈上。</p> <blockquote> <p>Exercise 9. Implement the code in page_fault_handler in kern/trap.c required to dispatch page faults to the user-mode handler. Be sure to take appropriate precautions when writing into the exception stack. (What happens if the user environment runs out of space on the exception stack?)</p> </blockquote> <div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">page_fault_handler</span><span class="p">(</span><span class="k">struct</span> <span class="n">Trapframe</span> <span class="o">*</span><span class="n">tf</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">uint32_t</span> <span class="n">fault_va</span><span class="p">;</span>
+
+    <span class="c1">// Read processor's CR2 register to find the faulting address
+</span>    <span class="n">fault_va</span> <span class="o">=</span> <span class="n">rcr2</span><span class="p">();</span>
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"fault_va: %x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">fault_va</span><span class="p">);</span>
+
+    <span class="c1">// Handle kernel-mode page faults.
+</span>
+    <span class="c1">// LAB 3: Your code here.
+</span>    <span class="k">if</span> <span class="p">((</span><span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_cs</span><span class="o">&amp;</span><span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"Kernel page fault!"</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// We've already handled kernel-mode exceptions, so if we get here,
+</span>    <span class="c1">// the page fault happened in user mode.
+</span>
+    <span class="c1">// Call the environment's page fault upcall, if one exists.  Set up a
+</span>    <span class="c1">// page fault stack frame on the user exception stack (below
+</span>    <span class="c1">// UXSTACKTOP), then branch to curenv-&gt;env_pgfault_upcall.
+</span>    <span class="c1">//
+</span>    <span class="c1">// The page fault upcall might cause another page fault, in which case
+</span>    <span class="c1">// we branch to the page fault upcall recursively, pushing another
+</span>    <span class="c1">// page fault stack frame on top of the user exception stack.
+</span>    <span class="c1">//
+</span>    <span class="c1">// The trap handler needs one word of scratch space at the top of the
+</span>    <span class="c1">// trap-time stack in order to return.  In the non-recursive case, we
+</span>    <span class="c1">// don't have to worry about this because the top of the regular user
+</span>    <span class="c1">// stack is free.  In the recursive case, this means we have to leave
+</span>    <span class="c1">// an extra word between the current top of the exception stack and
+</span>    <span class="c1">// the new stack frame because the exception stack _is_ the trap-time
+</span>    <span class="c1">// stack.
+</span>    <span class="c1">//
+</span>    <span class="c1">// If there's no page fault upcall, the environment didn't allocate a
+</span>    <span class="c1">// page for its exception stack or can't write to it, or the exception
+</span>    <span class="c1">// stack overflows, then destroy the environment that caused the fault.
+</span>    <span class="c1">// Note that the grade script assumes you will first check for the page
+</span>    <span class="c1">// fault upcall and print the "user fault va" message below if there is
+</span>    <span class="c1">// none.  The remaining three checks can be combined into a single test.
+</span>    <span class="c1">//
+</span>    <span class="c1">// Hints:
+</span>    <span class="c1">//   user_mem_assert() and env_run() are useful here.
+</span>    <span class="c1">//   To change what the user environment runs, modify 'curenv-&gt;env_tf'
+</span>    <span class="c1">//   (the 'tf' variable points at 'curenv-&gt;env_tf').
+</span>
+    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="k">if</span> <span class="p">(</span><span class="n">curenv</span><span class="o">-&gt;</span><span class="n">env_pgfault_upcall</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">struct</span> <span class="n">UTrapframe</span> <span class="o">*</span><span class="n">utf</span><span class="p">;</span>
+        <span class="kt">uintptr_t</span> <span class="n">utf_addr</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">UXSTACKTOP</span><span class="o">-</span><span class="n">PGSIZE</span><span class="o">&lt;=</span><span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_esp</span> <span class="o">&amp;&amp;</span> <span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_esp</span><span class="o">&lt;=</span><span class="n">UXSTACKTOP</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">utf_addr</span> <span class="o">=</span> <span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_esp</span> <span class="o">-</span> <span class="k">sizeof</span><span class="p">(</span><span class="k">struct</span> <span class="n">UTrapframe</span><span class="p">)</span> <span class="o">-</span> <span class="mi">4</span><span class="p">;</span>
+        <span class="k">else</span> 
+            <span class="n">utf_addr</span> <span class="o">=</span> <span class="n">UXSTACKTOP</span> <span class="o">-</span> <span class="k">sizeof</span><span class="p">(</span><span class="k">struct</span> <span class="n">UTrapframe</span><span class="p">);</span>
+        <span class="n">user_mem_assert</span><span class="p">(</span><span class="n">curenv</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">utf_addr</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="k">struct</span> <span class="n">UTrapframe</span><span class="p">),</span> <span class="n">PTE_W</span><span class="p">);</span><span class="c1">//1 is enough
+</span>        <span class="n">utf</span> <span class="o">=</span> <span class="p">(</span><span class="k">struct</span> <span class="n">UTrapframe</span> <span class="o">*</span><span class="p">)</span> <span class="n">utf_addr</span><span class="p">;</span>
+
+        <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_fault_va</span> <span class="o">=</span> <span class="n">fault_va</span><span class="p">;</span>
+        <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_err</span> <span class="o">=</span> <span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_err</span><span class="p">;</span>
+        <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_regs</span> <span class="o">=</span> <span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_regs</span><span class="p">;</span>
+        <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_eip</span> <span class="o">=</span> <span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_eip</span><span class="p">;</span>
+        <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_eflags</span> <span class="o">=</span> <span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_eflags</span><span class="p">;</span>
+        <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_esp</span> <span class="o">=</span> <span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_esp</span><span class="p">;</span>
+
+<span class="c1">//      curenv-&gt;env_tf.env_tf
+</span>        <span class="n">curenv</span><span class="o">-&gt;</span><span class="n">env_tf</span><span class="p">.</span><span class="n">tf_eip</span> <span class="o">=</span> <span class="p">(</span><span class="kt">uintptr_t</span><span class="p">)</span><span class="n">curenv</span><span class="o">-&gt;</span><span class="n">env_pgfault_upcall</span><span class="p">;</span>
+        <span class="n">curenv</span><span class="o">-&gt;</span><span class="n">env_tf</span><span class="p">.</span><span class="n">tf_esp</span> <span class="o">=</span> <span class="n">utf_addr</span><span class="p">;</span>
+        <span class="n">env_run</span><span class="p">(</span><span class="n">curenv</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Destroy the environment that caused the fault.
+</span>    <span class="n">cprintf</span><span class="p">(</span><span class="s">"[%08x] user fault va %08x ip %08x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+        <span class="n">curenv</span><span class="o">-&gt;</span><span class="n">env_id</span><span class="p">,</span> <span class="n">fault_va</span><span class="p">,</span> <span class="n">tf</span><span class="o">-&gt;</span><span class="n">tf_eip</span><span class="p">);</span>
+    <span class="n">print_trapframe</span><span class="p">(</span><span class="n">tf</span><span class="p">);</span>
+    <span class="n">env_destroy</span><span class="p">(</span><span class="n">curenv</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <h3 id="user-mode-page-fault-entrypoint">User-mode Page Fault Entrypoint</h3> <p>接下来，就需要汇编实现功能：当从用户定义的处理函数返回之后，如何从用户错误栈直接返回到用户运行栈。</p> <blockquote> <p>Exercise 10. Implement the _pgfault_upcall routine in lib/pfentry.S. The interesting part is returning to the original point in the user code that caused the page fault. You’ll return directly there, without going back through the kernel. The hard part is simultaneously switching stacks and re-loading the EIP.</p> </blockquote> <div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// Throughout the remaining code, think carefully about what
+</span>    <span class="c1">// registers are available for intermediate calculations.  You
+</span>    <span class="c1">// may find that you have to rearrange your code in non-obvious
+</span>    <span class="c1">// ways as registers become unavailable as scratch space.
+</span>    <span class="c1">//
+</span>    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="n">movl</span> <span class="mh">0x28</span><span class="p">(</span><span class="o">%</span><span class="n">esp</span><span class="p">),</span> <span class="o">%</span><span class="n">edx</span> <span class="err">#</span><span class="n">trap</span><span class="o">-</span><span class="n">time</span> <span class="n">eip</span>
+    <span class="n">subl</span> <span class="err">$</span><span class="mh">0x4</span><span class="p">,</span> <span class="mh">0x30</span><span class="p">(</span><span class="o">%</span><span class="n">esp</span><span class="p">)</span>
+    <span class="n">movl</span> <span class="mh">0x30</span><span class="p">(</span><span class="o">%</span><span class="n">esp</span><span class="p">),</span> <span class="o">%</span><span class="n">eax</span> <span class="err">#</span><span class="n">trap</span><span class="o">-</span><span class="n">time</span> <span class="n">esp</span><span class="o">-</span><span class="mi">4</span>
+    <span class="n">movl</span> <span class="o">%</span><span class="n">edx</span><span class="p">,</span> <span class="p">(</span><span class="o">%</span><span class="n">eax</span><span class="p">)</span>
+    <span class="n">addl</span> <span class="err">$</span><span class="mh">0x8</span><span class="p">,</span> <span class="o">%</span><span class="n">esp</span>
+
+    <span class="c1">// Restore the trap-time registers.  After you do this, you
+</span>    <span class="c1">// can no longer modify any general-purpose registers.
+</span>    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="n">popal</span>
+
+    <span class="c1">// Restore eflags from the stack.  After you do this, you can
+</span>    <span class="c1">// no longer use arithmetic operations or anything else that
+</span>    <span class="c1">// modifies eflags.
+</span>    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="n">addl</span> <span class="err">$</span><span class="mh">0x4</span><span class="p">,</span> <span class="o">%</span><span class="n">esp</span> <span class="err">#</span><span class="n">eip</span>
+    <span class="n">popfl</span>
+
+    <span class="c1">// Switch back to the adjusted trap-time stack.
+</span>    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="n">popl</span> <span class="o">%</span><span class="n">esp</span>
+
+    <span class="c1">// Return to re-execute the instruction that faulted.
+</span>    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="n">ret</span>
+
+</code></pre></div> <p>实现C库用户态的page fault处理函数。</p> <blockquote> <p>Exercise 11. Finish set_pgfault_handler() in lib/pgfault.c.</p> </blockquote> <p>根据注视得到设置页错误处理函数。如果没有页错误，_pgfault_handler将会是0。我们第一次注册一个处理需要分配一个异常栈，并且告诉内核当一个页错误出现时要调用汇编语言程序_pgfault_upcall。</p> <div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">set_pgfault_handler</span><span class="p">(</span><span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">handler</span><span class="p">)(</span><span class="k">struct</span> <span class="n">UTrapframe</span> <span class="o">*</span><span class="n">utf</span><span class="p">))</span>
+<span class="p">{</span>
+    <span class="c1">// int r;
+</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">_pgfault_handler</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// First time through!
+</span>        <span class="c1">// LAB 4: Your code here.
+</span>        <span class="k">if</span> <span class="p">(</span><span class="n">sys_page_alloc</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="n">UXSTACKTOP</span><span class="o">-</span><span class="n">PGSIZE</span><span class="p">),</span> <span class="n">PTE_W</span><span class="o">|</span><span class="n">PTE_U</span><span class="o">|</span><span class="n">PTE_P</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> 
+            <span class="n">panic</span><span class="p">(</span><span class="s">"set_pgfault_handler:sys_page_alloc failed"</span><span class="p">);;</span>
+    <span class="p">}</span>
+    <span class="c1">// Save handler pointer for assembly to call.
+</span>    <span class="n">_pgfault_handler</span> <span class="o">=</span> <span class="n">handler</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">sys_env_set_pgfault_upcall</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">_pgfault_upcall</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"set_pgfault_handler:sys_env_set_pgfault_upcall failed"</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <h2 id="implementing-copy-on-write-fork">Implementing Copy-on-Write Fork</h2> <p>现在已经有了在用户空间实现 copy-on-write fork()的整个内核基础。</p> <p>我们在lib/fork.c中提供了一个框架，与dumbfork()，fork()类似，需要创建一个新环境，然后扫描整个父进程的地址空间，并且设置对应的在子进程的页映射。主要不同的是，当dumpfork()拷贝整个页，而fork(）起初将只拷贝页的映射。fork()只会在其中一个进程想要去写地址空间时才会复制页。</p> <p>fork()基本的控制流如下：</p> <ul> <li>父进程配置 pgfault() 函数作为C-level的页错误处理，会用到上面的实现的set_pgfault_handler()。</li> <li>父进程调用sys_exofork()创建一个子进程环境。</li> <li>对于在UTOP之下的在地址空间里的每一个可写或copy-on-write的页，父进程就会调用duppage，它会将copy-on-write页映射到子进程的地址空间，然后重新映射copy-on-write页到自己的地址空间。[注意这里的顺序十分重要！知道为什么吗？你可以尝试思考将该顺序弄反会是造成怎样的麻烦]。duppage设置它们的PTEs，以便页是不能写的，然后在抑制无效领域的 PTE_COW 来区别 copy-on-write pages及原始的只读页。</li> </ul> <p>fork()同样要解决现在的页，但页不可写以及是copy-on-write。<br /> - 父进程为子进程设置用户页错误入口。<br /> - 子进程现在可以运行，然后父进程将其标记为可运行。</p> <p>每次这两进程中的一个向一个空的copy-on-write页写时，就会产生一个页错误。下面是用户页错误处理的控制流：</p> <ul> <li>内核传播页错误到_pgfault_upcall，调用fork()的pgfault() handler。</li> <li>pgfault() 检查错误代码中的FEC_WR，然后页中的PTE标记为 PTE_COW。没有的话，panic。</li> <li>pgfault() 分配一个映射在一个临时位置的新的页，然后将错误页中的内容复制进去。然后错误处理映射新的页到何时的带有读写权限的地址，替换院线的旧的只读的映射。</li> </ul> <blockquote> <p>Exercise 12. Implement fork, duppage and pgfault in lib/fork.c.</p> </blockquote> <div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">//
+// User-level fork with copy-on-write.
+// Set up our page fault handler appropriately.
+// Create a child.
+// Copy our address space and page fault handler setup to the child.
+// Then mark the child as runnable and return.
+//
+// Returns: child's envid to the parent, 0 to the child, &lt; 0 on error.
+// It is also OK to panic on error.
+//
+// Hint:
+//   Use uvpd, uvpt, and duppage.
+//   Remember to fix "thisenv" in the child process.
+//   Neither user exception stack should ever be marked copy-on-write,
+//   so you must allocate a new page for the child's user exception stack.
+//
+</span><span class="n">envid_t</span>
+<span class="nf">fork</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">set_pgfault_handler</span><span class="p">(</span><span class="n">pgfault</span><span class="p">);</span>
+
+    <span class="n">envid_t</span> <span class="n">envid</span><span class="p">;</span>
+    <span class="kt">uint32_t</span> <span class="n">addr</span><span class="p">;</span>
+    <span class="n">envid</span> <span class="o">=</span> <span class="n">sys_exofork</span><span class="p">();</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">envid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// panic("child");
+</span>        <span class="n">thisenv</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">envs</span><span class="p">[</span><span class="n">ENVX</span><span class="p">(</span><span class="n">sys_getenvid</span><span class="p">())];</span>
+        <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="c1">// cprintf("sys_exofork: %x\n", envid);
+</span>    <span class="k">if</span> <span class="p">(</span><span class="n">envid</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"sys_exofork: %e"</span><span class="p">,</span> <span class="n">envid</span><span class="p">);</span>
+
+    <span class="k">for</span> <span class="p">(</span><span class="n">addr</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">addr</span> <span class="o">&lt;</span> <span class="n">USTACKTOP</span><span class="p">;</span> <span class="n">addr</span> <span class="o">+=</span> <span class="n">PGSIZE</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">((</span><span class="n">uvpd</span><span class="p">[</span><span class="n">PDX</span><span class="p">(</span><span class="n">addr</span><span class="p">)]</span> <span class="o">&amp;</span> <span class="n">PTE_P</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="p">(</span><span class="n">uvpt</span><span class="p">[</span><span class="n">PGNUM</span><span class="p">(</span><span class="n">addr</span><span class="p">)]</span> <span class="o">&amp;</span> <span class="n">PTE_P</span><span class="p">)</span>
+            <span class="o">&amp;&amp;</span> <span class="p">(</span><span class="n">uvpt</span><span class="p">[</span><span class="n">PGNUM</span><span class="p">(</span><span class="n">addr</span><span class="p">)]</span> <span class="o">&amp;</span> <span class="n">PTE_U</span><span class="p">))</span> <span class="p">{</span>
+            <span class="c1">// cprintf("envid: %x, PGNUM: %x, addr: %x\n", envid, PGNUM(addr), addr);
+</span>            <span class="c1">// if (addr!=0x802000) {
+</span>            <span class="n">duppage</span><span class="p">(</span><span class="n">envid</span><span class="p">,</span> <span class="n">PGNUM</span><span class="p">(</span><span class="n">addr</span><span class="p">));</span>
+            <span class="c1">// } else panic("user fork");
+</span>            <span class="c1">// cprintf("duppage done\n");
+</span>            <span class="c1">// cprintf("%x\n", uvpd[PDX(addr)]);
+</span>            <span class="c1">// cprintf("%x\n", uvpt[PGNUM(addr)]);
+</span>        <span class="p">}</span>
+    <span class="c1">// panic("faint");
+</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">sys_page_alloc</span><span class="p">(</span><span class="n">envid</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)(</span><span class="n">UXSTACKTOP</span><span class="o">-</span><span class="n">PGSIZE</span><span class="p">),</span> <span class="n">PTE_U</span><span class="o">|</span><span class="n">PTE_W</span><span class="o">|</span><span class="n">PTE_P</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"1"</span><span class="p">);</span>
+    <span class="k">extern</span> <span class="kt">void</span> <span class="n">_pgfault_upcall</span><span class="p">();</span>
+    <span class="n">sys_env_set_pgfault_upcall</span><span class="p">(</span><span class="n">envid</span><span class="p">,</span> <span class="n">_pgfault_upcall</span><span class="p">);</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">sys_env_set_status</span><span class="p">(</span><span class="n">envid</span><span class="p">,</span> <span class="n">ENV_RUNNABLE</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"sys_env_set_status"</span><span class="p">);</span>
+
+    <span class="k">return</span> <span class="n">envid</span><span class="p">;</span>
+    <span class="n">panic</span><span class="p">(</span><span class="s">"fork not implemented"</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">//
+// Map our virtual page pn (address pn*PGSIZE) into the target envid
+// at the same virtual address.  If the page is writable or copy-on-write,
+// the new mapping must be created copy-on-write, and then our mapping must be
+// marked copy-on-write as well.  (Exercise: Why do we need to mark ours
+// copy-on-write again if it was already copy-on-write at the beginning of
+// this function?)
+//
+// Returns: 0 on success, &lt; 0 on error.
+// It is also OK to panic on error.
+//
+</span><span class="k">static</span> <span class="kt">int</span>
+<span class="nf">duppage</span><span class="p">(</span><span class="n">envid_t</span> <span class="n">envid</span><span class="p">,</span> <span class="kt">unsigned</span> <span class="n">pn</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="c1">// cprintf("1\n");
+</span>    <span class="kt">void</span> <span class="o">*</span><span class="n">addr</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span> <span class="p">(</span><span class="n">pn</span><span class="o">*</span><span class="n">PGSIZE</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">((</span><span class="n">uvpt</span><span class="p">[</span><span class="n">pn</span><span class="p">]</span> <span class="o">&amp;</span> <span class="n">PTE_W</span><span class="p">)</span> <span class="o">||</span> <span class="p">(</span><span class="n">uvpt</span><span class="p">[</span><span class="n">pn</span><span class="p">]</span> <span class="o">&amp;</span> <span class="n">PTE_COW</span><span class="p">))</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">sys_page_map</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">envid</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">PTE_COW</span><span class="o">|</span><span class="n">PTE_U</span><span class="o">|</span><span class="n">PTE_P</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">panic</span><span class="p">(</span><span class="s">"2"</span><span class="p">);</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">sys_page_map</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">PTE_COW</span><span class="o">|</span><span class="n">PTE_U</span><span class="o">|</span><span class="n">PTE_P</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">panic</span><span class="p">(</span><span class="s">"3"</span><span class="p">);</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="n">sys_page_map</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">envid</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">PTE_U</span><span class="o">|</span><span class="n">PTE_P</span><span class="p">);</span>
+    <span class="c1">// cprintf("2\n");
+</span>    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="n">panic</span><span class="p">(</span><span class="s">"duppage not implemented"</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div> <div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">//
+// Custom page fault handler - if faulting page is copy-on-write,
+// map in our own private writable copy.
+//
+</span><span class="k">static</span> <span class="kt">void</span>
+<span class="nf">pgfault</span><span class="p">(</span><span class="k">struct</span> <span class="n">UTrapframe</span> <span class="o">*</span><span class="n">utf</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="c1">// panic("pgfault");
+</span>    <span class="kt">void</span> <span class="o">*</span><span class="n">addr</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span> <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_fault_va</span><span class="p">;</span>
+    <span class="kt">uint32_t</span> <span class="n">err</span> <span class="o">=</span> <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_err</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+
+    <span class="c1">// Check that the faulting access was (1) a write, and (2) to a
+</span>    <span class="c1">// copy-on-write page.  If not, panic.
+</span>    <span class="c1">// Hint: 
+</span>    <span class="c1">//   Use the read-only page table mappings at uvpt
+</span>    <span class="c1">//   (see &lt;inc/memlayout.h&gt;).
+</span>
+    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">err</span> <span class="o">&amp;</span> <span class="n">FEC_WR</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="p">(</span><span class="n">uvpd</span><span class="p">[</span><span class="n">PDX</span><span class="p">(</span><span class="n">addr</span><span class="p">)]</span> <span class="o">&amp;</span> <span class="n">PTE_P</span><span class="p">)</span> <span class="o">&amp;&amp;</span> 
+            <span class="p">(</span><span class="n">uvpt</span><span class="p">[</span><span class="n">PGNUM</span><span class="p">(</span><span class="n">addr</span><span class="p">)]</span> <span class="o">&amp;</span> <span class="n">PTE_P</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="p">(</span><span class="n">uvpt</span><span class="p">[</span><span class="n">PGNUM</span><span class="p">(</span><span class="n">addr</span><span class="p">)]</span> <span class="o">&amp;</span> <span class="n">PTE_COW</span><span class="p">)))</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"not copy-on-write"</span><span class="p">);</span>
+    <span class="c1">// panic("pgfault");
+</span>    <span class="c1">// Allocate a new page, map it at a temporary location (PFTEMP),
+</span>    <span class="c1">// copy the data from the old page to the new page, then move the new
+</span>    <span class="c1">// page to the old page's address.
+</span>    <span class="c1">// Hint:
+</span>    <span class="c1">//   You should make three system calls.
+</span>    <span class="c1">//   No need to explicitly delete the old page's mapping.
+</span>
+    <span class="c1">// LAB 4: Your code here.
+</span>    <span class="n">addr</span> <span class="o">=</span> <span class="n">ROUNDDOWN</span><span class="p">(</span><span class="n">addr</span><span class="p">,</span> <span class="n">PGSIZE</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">sys_page_alloc</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">PFTEMP</span><span class="p">,</span> <span class="n">PTE_W</span><span class="o">|</span><span class="n">PTE_U</span><span class="o">|</span><span class="n">PTE_P</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"sys_page_alloc"</span><span class="p">);</span>
+    <span class="n">memcpy</span><span class="p">(</span><span class="n">PFTEMP</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">PGSIZE</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">sys_page_map</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">PFTEMP</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">PTE_W</span><span class="o">|</span><span class="n">PTE_U</span><span class="o">|</span><span class="n">PTE_P</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"sys_page_map"</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">sys_page_unmap</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">PFTEMP</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"sys_page_unmap"</span><span class="p">);</span>
+    <span class="k">return</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div> <h2 id="section">参考资料</h2> <p>1.http://46aae4d1e2371e4aa769798941cef698.devproxy.yunshipei.com/bysui/article/details/51842817</p> <p>2.https://github.com/Clann24/jos/tree/master/lab4/partB</p> <aside class="share"> <p>If you liked this article and think others should read it, please share it on <a href="http://twitter.com/share?text=MIT6.828 Lab 4: Preemptive Multitasking Part B: Copy-on-Write Fork&amp;url=http://alvinsjq.github.io/2017/mit6828lab4partB/&amp;via=Alvin_sjq" onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">Twitter <i class="fa fa-twitter" aria-hidden="true" style="color:#00aced"></i></a>or <a href="https://www.facebook.com/sharer/sharer.php?u=http://alvinsjq.github.io/2017/mit6828lab4partB/" onclick="window.open(this.href, 'facebook-share', 'width=550,height=235');return false;">facebook <i class="fa fa-facebook-square" aria-hidden="true" style="color:#3b5998"></i></a>.</p> </aside> </div> <style type="text/css"> .tagged { margin-top: 1rem; } .tagged a { border: 1px solid #ddd; padding: 2px 5px; background: transparent; display: inline-block; color: #999; outline: 0; text-decoration: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; font-size: 70%; } .tagged a:hover { cursor: pointer; border: 1px solid #555; background: #444; color: #fff; } .back { /*text-align: center;*/ text-transform: uppercase; letter-spacing: 1px; } </style> <div class="tagged"> <a href="http://alvinsjq.github.io/tagged#mit6-828"><i class="fa fa-hashtag" aria-hidden="true"></i>MIT6.828</a> <a href="http://alvinsjq.github.io/tagged#os"><i class="fa fa-hashtag" aria-hidden="true"></i>OS</a> <a href="http://alvinsjq.github.io/tagged#process"><i class="fa fa-hashtag" aria-hidden="true"></i>process</a> </div> <br> <div class="back"><a href="/"><i class="fa fa-chevron-left"></i>Back</a></div> </article> <aside id="comments" class="disqus"> <div class="container"> <div id="gitmentContainer"></div> <link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css"> <script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script> <script> var gitment = new Gitment({ id: '<%= page.title %>', owner: 'Alvinsjq', repo: 'Alvinsjq.github.io', oauth: { client_id: 'b108345cd65235055f4a', client_secret: '2faaebf58d2e33a50a022d84c6448d9d9535feda', }, }); gitment.render('gitmentContainer'); </script> </div> </aside> <footer class="site-footer"> <div class="container"> <small class="block">&copy; 2018 Alvinsjq. All rights reserved.</small> <small><a href="https://github.com/heiswayi/thinkspace">Thanks for <i class="fa fa-heart" aria-hidden="true" style="color:#DD3D36"></i> Thinkspace</a> theme by <a href="http://heiswayi.github.io/">Heiswayi Nrird</a>.</small> <div class="footer-social-links"> <a href="http://alvinsjq.github.io/feed.xml" title="RSS Feed" target="_blank"><i class="fa fa-rss"></i></a> <a href="http://weibo.com/p/1005051719812480/home" title="Weibo" target="_blank"><i class="fa fa-weibo" aria-hidden="true"></i></a> <a href="https://twitter.com/Alvin_sjq" title="Twitter" target="_blank"><i class="fa fa-twitter"></i></a> <a href="https://github.com/Alvinsjq/" title="GitHub Repositories" target="_blank"><i class="fa fa-github-alt"></i></a> <a href="https://www.instagram.com/sj_alvin/" title="Instagram" target="_blank"><i class="fa fa-instagram"></i></a> </div> </div> </footer> </main> </body> </html>

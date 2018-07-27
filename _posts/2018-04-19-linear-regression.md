@@ -1,4 +1,4 @@
----
+﻿---
 layout: post
 title:  "Python实现线性回归"
 tags: [机器学习]
@@ -11,8 +11,8 @@ date:   2018-04-19 13:40:22 +0800
 
 最近重拾机器学习，想着学习网上的把Ng课涉及到的几个基础的机器学习算法用python实现以下，第一章的练习就是线性回归的实现。
 
-![效果图]()
-
+![效果图](https://github.com/Alvinsjq/ML_ALGo_Basic/blob/master/Coursera_ML_Python/images/lr_gra.png?raw=true)
+<!--more-->
 ## 重要算法与函数
 
 #### Cost Function
